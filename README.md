@@ -21,18 +21,12 @@ A production-grade web platform for managing vehicle gadgets inventory with barc
 - **Product Details**: Image gallery, specifications, stock status
 - **WhatsApp Inquiry**: One-click inquiry via WhatsApp
 
-### Real-Time Sync
-- **WebSocket Integration**: Instant updates across all devices
-- **Live Inventory**: Stock changes reflected immediately
-- **Event Broadcasting**: All actions synced in real-time
-
 ## 🛠 Tech Stack
 
 ### Backend
 - **FastAPI** - Modern Python web framework
 - **PostgreSQL** - Primary database
 - **SQLAlchemy** - Async ORM
-- **WebSockets** - Real-time communication
 
 ### Frontend
 - **Next.js 14** - React framework with App Router
@@ -166,9 +160,6 @@ On mobile devices, you can install the app:
 - `GET /api/images/product/{id}` - Get product images
 - `POST /api/images/product/{id}` - Upload image
 - `DELETE /api/images/{id}` - Delete image
-
-### WebSocket
-- `WS /api/ws` - Real-time updates
 
 ## 🔮 Future Roadmap
 

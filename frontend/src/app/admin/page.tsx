@@ -17,8 +17,6 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-// WebSocket disabled - app works without real-time updates
-// import { useRealtimeUpdates } from '@/hooks/useWebSocket';
 import { cn } from '@/lib/utils';
 
 export default function AdminDashboard() {
@@ -41,12 +39,6 @@ export default function AdminDashboard() {
     queryKey: ['recent-products'],
     queryFn: () => api.getProducts({ page_size: 5, sort_by: 'created_at', sort_order: 'desc' }),
   });
-
-  // Real-time updates
-  // WebSocket disabled
-  // useRealtimeUpdates('inventory', () => {
-  //   refetchStats();
-  // });
 
   const statCards = [
     {

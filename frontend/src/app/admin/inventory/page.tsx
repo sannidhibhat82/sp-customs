@@ -38,8 +38,6 @@ import {
 import { api } from '@/lib/api';
 import { toast } from '@/components/ui/use-toast';
 import { cn, formatDateTime } from '@/lib/utils';
-// WebSocket disabled - app works without real-time updates
-// import { useRealtimeUpdates } from '@/hooks/useWebSocket';
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
@@ -85,13 +83,6 @@ export default function InventoryPage() {
     queryFn: () => api.getInventoryLogs(historyDialog.productId!, 20),
     enabled: !!historyDialog.productId,
   });
-
-  // Real-time updates
-  // WebSocket disabled
-  // useRealtimeUpdates('inventory', () => {
-  //   refetch();
-  //   refetchStats();
-  // });
 
   // Update mutation for products
   const updateMutation = useMutation({

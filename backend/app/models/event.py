@@ -7,8 +7,8 @@ import uuid
 
 class Event(Base):
     """
-    Event log for real-time sync and audit trail.
-    All changes are logged here for WebSocket broadcasting.
+    Event log for audit trail.
+    All changes are logged here for tracking purposes.
     """
     __tablename__ = "events"
     
