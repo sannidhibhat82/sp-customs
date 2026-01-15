@@ -314,16 +314,68 @@ export default function AdminScannerPage() {
                               SKU: {lastScan.product_sku}
                             </p>
                             <p className="text-base mt-1">
-                              {lastScan.previous_quantity} → {lastScan.new_quantity}
-                              <span className={cn(
-                                "ml-2 font-bold",
-                                lastScan.change > 0 ? "text-green-500" : "text-red-500"
-                              )}>
-                                ({lastScan.change > 0 ? '+' : ''}{lastScan.change})
-                              </span>
+                              Stock: <span className="font-bold">{lastScan.new_quantity}</span>
                             </p>
                           </div>
-                          <button onClick={() => setLastScan(null)} className="p-2 hover:bg-secondary rounded-lg">
+                          {/* Quick adjustment buttons */}
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 border-red-500/50 hover:bg-red-500/20 hover:text-red-500"
+                              onClick={async () => {
+                                if (lastScan.new_quantity <= 0) {
+                                  toast({ title: 'Cannot remove - stock is 0', variant: 'destructive' });
+                                  return;
+                                }
+                                try {
+                                  const result = await api.scanInventory({
+                                    product_id: lastScan.product_id,
+                                    action: 'scan_out',
+                                    quantity: 1,
+                                    device_type: 'desktop',
+                                  });
+                                  setLastScan(result);
+                                  addToHistory(result);
+                                  queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+                                  queryClient.invalidateQueries({ queryKey: ['inventory-stats'] });
+                                  toast({ title: 'Stock removed (-1)', variant: 'success' });
+                                } catch (error: any) {
+                                  toast({ title: 'Failed', description: error.response?.data?.detail, variant: 'destructive' });
+                                }
+                              }}
+                              disabled={isProcessing || lastScan.new_quantity <= 0}
+                            >
+                              <Minus className="w-5 h-5" />
+                            </Button>
+                            <span className="w-12 text-center text-xl font-bold">{lastScan.new_quantity}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 border-green-500/50 hover:bg-green-500/20 hover:text-green-500"
+                              onClick={async () => {
+                                try {
+                                  const result = await api.scanInventory({
+                                    product_id: lastScan.product_id,
+                                    action: 'scan_in',
+                                    quantity: 1,
+                                    device_type: 'desktop',
+                                  });
+                                  setLastScan(result);
+                                  addToHistory(result);
+                                  queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+                                  queryClient.invalidateQueries({ queryKey: ['inventory-stats'] });
+                                  toast({ title: 'Stock added (+1)', variant: 'success' });
+                                } catch (error: any) {
+                                  toast({ title: 'Failed', description: error.response?.data?.detail, variant: 'destructive' });
+                                }
+                              }}
+                              disabled={isProcessing}
+                            >
+                              <Plus className="w-5 h-5" />
+                            </Button>
+                          </div>
+                          <button onClick={() => setLastScan(null)} className="p-2 hover:bg-secondary rounded-lg ml-2">
                             <X className="w-5 h-5 text-muted-foreground" />
                           </button>
                         </div>

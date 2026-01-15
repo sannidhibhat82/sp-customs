@@ -427,33 +427,88 @@ export default function MobileScannerPage() {
                 lastScan.change > 0 ? "border-green-500 bg-green-500/10" : "border-red-500 bg-red-500/10"
               )}
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <div className={cn(
-                  "w-14 h-14 rounded-full flex items-center justify-center",
+                  "w-12 h-12 rounded-full flex items-center justify-center shrink-0",
                   lastScan.change > 0 ? "bg-green-500" : "bg-red-500"
                 )}>
                   {lastScan.change > 0 ? (
-                    <Check className="w-8 h-8 text-white" />
+                    <Check className="w-6 h-6 text-white" />
                   ) : (
-                    <Minus className="w-8 h-8 text-white" />
+                    <Minus className="w-6 h-6 text-white" />
                   )}
                 </div>
-                <div className="flex-1">
-                  <p className="font-bold text-lg">{lastScan.product_name}</p>
-                  <p className="text-sm text-muted-foreground">{lastScan.product_sku}</p>
-                  <p className="text-lg font-mono mt-1">
-                    {lastScan.previous_quantity} → {lastScan.new_quantity}
-                    <span className={cn(
-                      "ml-2 font-bold",
-                      lastScan.change > 0 ? "text-green-500" : "text-red-500"
-                    )}>
-                      ({lastScan.change > 0 ? '+' : ''}{lastScan.change})
-                    </span>
-                  </p>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold truncate">{lastScan.product_name}</p>
+                  <p className="text-xs text-muted-foreground">{lastScan.product_sku}</p>
                 </div>
-                <button onClick={() => setLastScan(null)} className="p-2">
-                  <X className="w-5 h-5 text-muted-foreground" />
+                <button onClick={() => setLastScan(null)} className="p-1.5 shrink-0">
+                  <X className="w-4 h-4 text-muted-foreground" />
                 </button>
+              </div>
+              {/* Quick +/- Adjustment */}
+              <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-border/50">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="h-14 w-14 rounded-full border-2 border-red-500/50 hover:bg-red-500/20 hover:border-red-500"
+                  onClick={async () => {
+                    if (lastScan.new_quantity <= 0) {
+                      if (navigator.vibrate) navigator.vibrate(200);
+                      toast({ title: 'Cannot remove - stock is 0', variant: 'destructive' });
+                      return;
+                    }
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    try {
+                      const result = await api.scanInventory({
+                        product_id: lastScan.product_id,
+                        action: 'scan_out',
+                        quantity: 1,
+                        device_type: 'mobile',
+                      });
+                      setLastScan(result);
+                      setScanHistory(prev => [result, ...prev.slice(0, 19)]);
+                      if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+                      toast({ title: '📦 Removed (-1)', variant: 'success' });
+                    } catch (error: any) {
+                      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                      toast({ title: 'Failed', variant: 'destructive' });
+                    }
+                  }}
+                  disabled={isProcessing || lastScan.new_quantity <= 0}
+                >
+                  <Minus className="w-6 h-6 text-red-500" />
+                </Button>
+                <div className="text-center">
+                  <p className="text-3xl font-bold">{lastScan.new_quantity}</p>
+                  <p className="text-xs text-muted-foreground">in stock</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="h-14 w-14 rounded-full border-2 border-green-500/50 hover:bg-green-500/20 hover:border-green-500"
+                  onClick={async () => {
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    try {
+                      const result = await api.scanInventory({
+                        product_id: lastScan.product_id,
+                        action: 'scan_in',
+                        quantity: 1,
+                        device_type: 'mobile',
+                      });
+                      setLastScan(result);
+                      setScanHistory(prev => [result, ...prev.slice(0, 19)]);
+                      if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+                      toast({ title: '✅ Added (+1)', variant: 'success' });
+                    } catch (error: any) {
+                      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                      toast({ title: 'Failed', variant: 'destructive' });
+                    }
+                  }}
+                  disabled={isProcessing}
+                >
+                  <Plus className="w-6 h-6 text-green-500" />
+                </Button>
               </div>
             </motion.div>
           )}

@@ -3,6 +3,7 @@ Images API - Product image upload and management.
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 import base64
@@ -386,4 +387,99 @@ async def reorder_images(
     
     await db.commit()
     return {"message": "Images reordered successfully"}
+
+
+@router.get("/serve/product/{product_id}")
+async def serve_product_image(
+    product_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Serve the primary product image as an actual image file.
+    This is used for Open Graph previews (WhatsApp, Facebook, etc.)
+    """
+    # Get product's primary image
+    result = await db.execute(
+        select(ProductImage)
+        .where(ProductImage.product_id == product_id)
+        .order_by(ProductImage.sort_order)
+        .limit(1)
+    )
+    image = result.scalar_one_or_none()
+    
+    if not image or not image.image_data:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    # Decode base64 image data
+    image_data = image.image_data
+    
+    # Remove data URL prefix if present
+    if image_data.startswith('data:'):
+        # Extract the base64 part after the comma
+        image_data = image_data.split(',', 1)[1] if ',' in image_data else image_data
+    
+    try:
+        image_bytes = base64.b64decode(image_data)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to decode image")
+    
+    # Determine content type from image data
+    content_type = "image/png"  # default
+    if image.content_type:
+        content_type = image.content_type
+    elif image_data.startswith('/9j/'):
+        content_type = "image/jpeg"
+    elif image_data.startswith('iVBOR'):
+        content_type = "image/png"
+    elif image_data.startswith('R0lGO'):
+        content_type = "image/gif"
+    elif image_data.startswith('UklGR'):
+        content_type = "image/webp"
+    
+    return Response(
+        content=image_bytes,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "public, max-age=86400",  # Cache for 24 hours
+        }
+    )
+
+
+@router.get("/serve/{image_id}")
+async def serve_image_by_id(
+    image_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Serve a specific image by ID as an actual image file.
+    """
+    result = await db.execute(
+        select(ProductImage).where(ProductImage.id == image_id)
+    )
+    image = result.scalar_one_or_none()
+    
+    if not image or not image.image_data:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    # Decode base64 image data
+    image_data = image.image_data
+    
+    # Remove data URL prefix if present
+    if image_data.startswith('data:'):
+        image_data = image_data.split(',', 1)[1] if ',' in image_data else image_data
+    
+    try:
+        image_bytes = base64.b64decode(image_data)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to decode image")
+    
+    content_type = image.content_type or "image/png"
+    
+    return Response(
+        content=image_bytes,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "public, max-age=86400",
+        }
+    )
 

@@ -45,6 +45,7 @@ export default function NewProductPage() {
     category_id: '',
     brand_id: '',
     initial_quantity: '0',
+    custom_sku: '',
     is_active: true,
     is_featured: false,
     is_new: true,
@@ -149,6 +150,7 @@ export default function NewProductPage() {
       category_id: formData.category_id ? parseInt(formData.category_id) : null,
       brand_id: formData.brand_id ? parseInt(formData.brand_id) : null,
       initial_quantity: parseInt(formData.initial_quantity) || 0,
+      custom_sku: formData.custom_sku || null,
       is_active: formData.is_active,
       is_featured: formData.is_featured,
       is_new: formData.is_new,
@@ -426,10 +428,35 @@ export default function NewProductPage() {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">SKU & Barcode</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Custom SKU (Optional)</label>
+                  <Input
+                    value={formData.custom_sku}
+                    onChange={(e) => setFormData({ ...formData, custom_sku: e.target.value.toUpperCase() })}
+                    placeholder="e.g., ABC-12345"
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter your existing SKU/barcode if you have one. Leave empty to auto-generate.
+                  </p>
+                </div>
+                <div className="border-t border-border pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    If custom SKU is provided, it will be used as both SKU and barcode. Otherwise, both will be auto-generated.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="bg-primary/5 border-primary/20">
               <CardContent className="pt-4">
                 <p className="text-sm text-muted-foreground">
-                  <strong>SKU & Barcode</strong> will be auto-generated after product is created.
+                  <strong>Product Variants</strong> (colors, sizes, etc.) can be added after creating the product.
                 </p>
               </CardContent>
             </Card>

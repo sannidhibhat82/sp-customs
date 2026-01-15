@@ -124,6 +124,30 @@ class BarcodeGenerator:
         }
     
     @staticmethod
+    def generate_barcode_from_sku(custom_sku: str, product_id: int) -> dict:
+        """
+        Generate barcode and QR code from a custom SKU.
+        
+        Args:
+            custom_sku: The user-provided SKU to use as barcode
+            product_id: The product ID for QR code reference
+        
+        Returns:
+            Dictionary with barcode_data and qr_code_data
+        """
+        # Generate barcode image from custom SKU
+        barcode_base64, _ = BarcodeGenerator.generate_barcode_image(custom_sku)
+        
+        # Generate QR code with both product ID and SKU for flexibility
+        qr_data = f"SPCPRODUCT:{product_id}|SKU:{custom_sku}"
+        qr_base64, _ = BarcodeGenerator.generate_qr_code(qr_data)
+        
+        return {
+            "barcode_data": barcode_base64,
+            "qr_code_data": qr_base64,
+        }
+    
+    @staticmethod
     def decode_qr_data(qr_content: str) -> dict:
         """
         Decode QR code content to extract product info.

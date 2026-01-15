@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -30,7 +30,7 @@ import {
 import { api } from '@/lib/api';
 import { formatCurrency, getImageSrc, generateWhatsAppLink, cn } from '@/lib/utils';
 
-export default function CatalogPage() {
+function CatalogPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -553,3 +553,14 @@ export default function CatalogPage() {
   );
 }
 
+export default function CatalogPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <CatalogPageContent />
+    </Suspense>
+  );
+}

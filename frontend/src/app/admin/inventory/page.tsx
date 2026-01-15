@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Warehouse,
   Package,
@@ -13,6 +13,9 @@ import {
   Filter,
   Edit,
   History,
+  ChevronDown,
+  ChevronRight,
+  Palette,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,15 +46,20 @@ export default function InventoryPage() {
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
-  const [editDialog, setEditDialog] = useState<{ open: boolean; product: any }>({
+  const [editDialog, setEditDialog] = useState<{ open: boolean; product: any; isVariant?: boolean }>({
     open: false,
     product: null,
+    isVariant: false,
   });
   const [historyDialog, setHistoryDialog] = useState<{ open: boolean; productId: number | null }>({
     open: false,
     productId: null,
   });
   const [newQuantity, setNewQuantity] = useState('');
+  const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+  const [productVariants, setProductVariants] = useState<Record<number, any[]>>({});
+  const [loadingVariants, setLoadingVariants] = useState<Set<number>>(new Set());
+  const [productsWithoutVariants, setProductsWithoutVariants] = useState<Set<number>>(new Set());
   const PAGE_SIZE = 20;
 
   // Fetch products with inventory
@@ -85,7 +93,7 @@ export default function InventoryPage() {
   //   refetchStats();
   // });
 
-  // Update mutation
+  // Update mutation for products
   const updateMutation = useMutation({
     mutationFn: ({ productId, quantity }: { productId: number; quantity: number }) =>
       api.updateInventory(productId, { quantity }),
@@ -93,20 +101,115 @@ export default function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-stats'] });
       toast({ title: 'Inventory updated!', variant: 'success' });
-      setEditDialog({ open: false, product: null });
+      setEditDialog({ open: false, product: null, isVariant: false });
     },
     onError: () => {
       toast({ title: 'Failed to update inventory', variant: 'destructive' });
     },
   });
 
+  // Update mutation for variants
+  const updateVariantMutation = useMutation({
+    mutationFn: ({ variantId, quantity }: { variantId: number; quantity: number }) =>
+      api.updateVariantInventory(variantId, quantity, 'set'),
+    onSuccess: (_, variables) => {
+      // Update local variants state
+      setProductVariants(prev => {
+        const updated = { ...prev };
+        for (const productId in updated) {
+          updated[productId] = updated[productId].map(v => 
+            v.id === variables.variantId ? { ...v, inventory_quantity: variables.quantity } : v
+          );
+        }
+        return updated;
+      });
+      queryClient.invalidateQueries({ queryKey: ['inventory-stats'] });
+      toast({ title: 'Variant inventory updated!', variant: 'success' });
+      setEditDialog({ open: false, product: null, isVariant: false });
+    },
+    onError: () => {
+      toast({ title: 'Failed to update variant inventory', variant: 'destructive' });
+    },
+  });
+
   const handleUpdateQuantity = () => {
     if (editDialog.product && newQuantity !== '') {
-      updateMutation.mutate({
-        productId: editDialog.product.id,
-        quantity: parseInt(newQuantity),
-      });
+      if (editDialog.isVariant) {
+        updateVariantMutation.mutate({
+          variantId: editDialog.product.id,
+          quantity: parseInt(newQuantity),
+        });
+      } else {
+        updateMutation.mutate({
+          productId: editDialog.product.id,
+          quantity: parseInt(newQuantity),
+        });
+      }
     }
+  };
+
+  // Toggle expand and fetch variants
+  const toggleExpand = async (productId: number) => {
+    // Don't expand if we know this product has no variants
+    if (productsWithoutVariants.has(productId)) {
+      return;
+    }
+    
+    if (expandedProducts.has(productId)) {
+      // Collapse
+      setExpandedProducts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(productId);
+        return newSet;
+      });
+    } else {
+      // Fetch variants if not already loaded
+      if (!productVariants[productId]) {
+        setLoadingVariants(prev => new Set(prev).add(productId));
+        let hasVariantsResult = false;
+        
+        try {
+          const variants = await api.getProductVariants(productId);
+          setProductVariants(prev => ({ ...prev, [productId]: variants }));
+          hasVariantsResult = variants && variants.length > 0;
+          
+          // If no variants, remember this
+          if (!hasVariantsResult) {
+            setProductsWithoutVariants(prev => new Set(prev).add(productId));
+          }
+        } catch (error) {
+          // Product may not have variants
+          setProductVariants(prev => ({ ...prev, [productId]: [] }));
+          setProductsWithoutVariants(prev => new Set(prev).add(productId));
+          hasVariantsResult = false;
+        } finally {
+          setLoadingVariants(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(productId);
+            return newSet;
+          });
+        }
+        
+        // Expand only if has variants
+        if (hasVariantsResult) {
+          setExpandedProducts(prev => new Set(prev).add(productId));
+        }
+      } else {
+        // Already loaded - just toggle if has variants
+        if (productVariants[productId]?.length > 0) {
+          setExpandedProducts(prev => new Set(prev).add(productId));
+        }
+      }
+    }
+  };
+  
+  // Check if product has variants (known)
+  const hasVariants = (productId: number): boolean | null => {
+    if (productsWithoutVariants.has(productId)) return false;
+    if (productVariants[productId] !== undefined) {
+      return productVariants[productId].length > 0;
+    }
+    return null; // Unknown yet
   };
 
   const statCards = [
@@ -239,7 +342,8 @@ export default function InventoryPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Product</th>
+                    <th className="w-8"></th>
+                    <th>Product / Variant</th>
                     <th>SKU</th>
                     <th>Quantity</th>
                     <th>Status</th>
@@ -248,70 +352,169 @@ export default function InventoryPage() {
                 </thead>
                 <tbody>
                   {filteredProducts?.map((product: any) => (
-                    <tr key={product.id}>
-                      <td>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center overflow-hidden">
-                            {product.primary_image ? (
-                              <img
-                                src={`data:image/jpeg;base64,${product.primary_image}`}
-                                alt={product.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <Package className="w-5 h-5 text-muted-foreground" />
-                            )}
+                    <>
+                      <tr key={product.id} className="hover:bg-secondary/30">
+                        <td className="w-8 px-2">
+                          {hasVariants(product.id) !== false ? (
+                            <button
+                              onClick={() => toggleExpand(product.id)}
+                              className={cn(
+                                "p-1 rounded hover:bg-secondary",
+                                loadingVariants.has(product.id) && "opacity-50"
+                              )}
+                              title={hasVariants(product.id) === null ? "Check for variants" : "Show variants"}
+                              disabled={loadingVariants.has(product.id)}
+                            >
+                              {loadingVariants.has(product.id) ? (
+                                <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                              ) : expandedProducts.has(product.id) ? (
+                                <ChevronDown className="w-4 h-4" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </button>
+                          ) : (
+                            <div className="w-6 h-6" /> 
+                          )}
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center overflow-hidden">
+                              {product.primary_image ? (
+                                <img
+                                  src={`data:image/jpeg;base64,${product.primary_image}`}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <Package className="w-5 h-5 text-muted-foreground" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium">{product.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {product.category?.name}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{product.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {product.category?.name}
-                            </p>
+                        </td>
+                        <td className="font-mono text-sm">{product.sku}</td>
+                        <td>
+                          <span className={cn(
+                            "text-lg font-bold",
+                            product.inventory_quantity === 0 ? "text-red-400" :
+                            product.inventory_quantity <= 5 ? "text-yellow-400" :
+                            "text-green-400"
+                          )}>
+                            {product.inventory_quantity}
+                          </span>
+                        </td>
+                        <td>
+                          {product.inventory_quantity === 0 ? (
+                            <span className="badge badge-danger">Out of Stock</span>
+                          ) : product.inventory_quantity <= 5 ? (
+                            <span className="badge badge-warning">Low Stock</span>
+                          ) : (
+                            <span className="badge badge-success">In Stock</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditDialog({ open: true, product, isVariant: false });
+                                setNewQuantity(String(product.inventory_quantity));
+                              }}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setHistoryDialog({ open: true, productId: product.id })}
+                            >
+                              <History className="w-4 h-4" />
+                            </Button>
                           </div>
-                        </div>
-                      </td>
-                      <td className="font-mono text-sm">{product.sku}</td>
-                      <td>
-                        <span className={cn(
-                          "text-lg font-bold",
-                          product.inventory_quantity === 0 ? "text-red-400" :
-                          product.inventory_quantity <= 5 ? "text-yellow-400" :
-                          "text-green-400"
-                        )}>
-                          {product.inventory_quantity}
-                        </span>
-                      </td>
-                      <td>
-                        {product.inventory_quantity === 0 ? (
-                          <span className="badge badge-danger">Out of Stock</span>
-                        ) : product.inventory_quantity <= 5 ? (
-                          <span className="badge badge-warning">Low Stock</span>
-                        ) : (
-                          <span className="badge badge-success">In Stock</span>
+                        </td>
+                      </tr>
+                      {/* Variant Rows */}
+                      <AnimatePresence>
+                        {expandedProducts.has(product.id) && productVariants[product.id]?.length > 0 && (
+                          productVariants[product.id].map((variant: any) => (
+                            <motion.tr
+                              key={`variant-${variant.id}`}
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="bg-secondary/20 border-l-4 border-l-primary/30"
+                            >
+                              <td className="w-8 px-2"></td>
+                              <td>
+                                <div className="flex items-center gap-3 pl-4">
+                                  <div className="w-8 h-8 rounded bg-secondary flex items-center justify-center overflow-hidden">
+                                    {variant.primary_image ? (
+                                      <img
+                                        src={variant.primary_image.startsWith('data:') ? variant.primary_image : `data:image/jpeg;base64,${variant.primary_image}`}
+                                        alt={variant.name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <Palette className="w-4 h-4 text-muted-foreground" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-sm flex items-center gap-2">
+                                      <span className="text-primary">↳</span> {variant.name}
+                                      {variant.is_default && (
+                                        <span className="px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] rounded">Default</span>
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {Object.entries(variant.options || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="font-mono text-xs">{variant.sku || '-'}</td>
+                              <td>
+                                <span className={cn(
+                                  "text-base font-bold",
+                                  variant.inventory_quantity === 0 ? "text-red-400" :
+                                  variant.inventory_quantity <= 5 ? "text-yellow-400" :
+                                  "text-green-400"
+                                )}>
+                                  {variant.inventory_quantity}
+                                </span>
+                              </td>
+                              <td>
+                                {variant.inventory_quantity === 0 ? (
+                                  <span className="badge badge-danger text-xs">Out</span>
+                                ) : variant.inventory_quantity <= 5 ? (
+                                  <span className="badge badge-warning text-xs">Low</span>
+                                ) : (
+                                  <span className="badge badge-success text-xs">In Stock</span>
+                                )}
+                              </td>
+                              <td>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditDialog({ open: true, product: variant, isVariant: true });
+                                    setNewQuantity(String(variant.inventory_quantity));
+                                  }}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                              </td>
+                            </motion.tr>
+                          ))
                         )}
-                      </td>
-                      <td>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditDialog({ open: true, product });
-                              setNewQuantity(String(product.inventory_quantity));
-                            }}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setHistoryDialog({ open: true, productId: product.id })}
-                          >
-                            <History className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
+                      </AnimatePresence>
+                    </>
                   ))}
                 </tbody>
               </table>
@@ -375,10 +578,10 @@ export default function InventoryPage() {
       </Card>
 
       {/* Edit Quantity Dialog */}
-      <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, product: null })}>
+      <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, product: null, isVariant: false })}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update Quantity</DialogTitle>
+            <DialogTitle>Update {editDialog.isVariant ? 'Variant' : 'Product'} Quantity</DialogTitle>
             <DialogDescription>
               Adjust the stock quantity for {editDialog.product?.name}
             </DialogDescription>
@@ -394,11 +597,11 @@ export default function InventoryPage() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialog({ open: false, product: null })}>
+            <Button variant="outline" onClick={() => setEditDialog({ open: false, product: null, isVariant: false })}>
               Cancel
             </Button>
-            <Button onClick={handleUpdateQuantity} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? 'Updating...' : 'Update'}
+            <Button onClick={handleUpdateQuantity} disabled={updateMutation.isPending || updateVariantMutation.isPending}>
+              {(updateMutation.isPending || updateVariantMutation.isPending) ? 'Updating...' : 'Update'}
             </Button>
           </DialogFooter>
         </DialogContent>

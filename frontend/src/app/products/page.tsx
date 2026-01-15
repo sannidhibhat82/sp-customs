@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
@@ -208,7 +208,7 @@ function ProductCard({ product, view }: { product: any; view: 'grid' | 'list' })
   );
 }
 
-export default function ProductsPage() {
+function ProductsPageContent() {
   const searchParams = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   const [search, setSearch] = useState(initialSearch);
@@ -576,5 +576,17 @@ export default function ProductsPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <ProductsPageContent />
+    </Suspense>
   );
 }

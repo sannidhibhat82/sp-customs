@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,6 +14,8 @@ import {
   Scan,
   CheckCircle2,
   Smartphone,
+  Palette,
+  ChevronDown,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -25,12 +27,15 @@ import { api } from '@/lib/api';
 import { toast } from '@/components/ui/use-toast';
 import { compressImage, cn } from '@/lib/utils';
 
-export default function MobileUploadPage() {
+function MobileUploadPageContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const productIdFromUrl = searchParams.get('product');
+  const variantIdFromUrl = searchParams.get('variant');
   
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedVariant, setSelectedVariant] = useState<any>(null);
+  const [showVariants, setShowVariants] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedImages, setSelectedImages] = useState<{ file: File; preview: string }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -47,6 +52,23 @@ export default function MobileUploadPage() {
     enabled: !!productIdFromUrl && !selectedProduct,
   });
   
+  // Fetch variants for selected product
+  const { data: variants = [] } = useQuery({
+    queryKey: ['product-variants', selectedProduct?.id],
+    queryFn: () => api.getProductVariants(selectedProduct!.id),
+    enabled: !!selectedProduct?.id,
+  });
+  
+  // Auto-select variant from URL
+  useEffect(() => {
+    if (variantIdFromUrl && variants.length > 0 && !selectedVariant) {
+      const variant = variants.find((v: any) => v.id === parseInt(variantIdFromUrl));
+      if (variant && !variant.is_default) {
+        setSelectedVariant(variant);
+      }
+    }
+  }, [variantIdFromUrl, variants, selectedVariant]);
+  
   // Auto-select product when loaded from URL
   useEffect(() => {
     if (productFromUrl && !selectedProduct) {
@@ -61,10 +83,22 @@ export default function MobileUploadPage() {
     enabled: searchQuery.length >= 2,
   });
 
-  // Upload mutation
+  // Upload mutation for product images
   const uploadMutation = useMutation({
     mutationFn: async ({ productId, image, isPrimary }: { productId: number; image: string; isPrimary: boolean }) => {
       return api.uploadProductImage(productId, {
+        filename: `upload_${Date.now()}.jpg`,
+        content_type: 'image/jpeg',
+        image_data: image,
+        is_primary: isPrimary,
+      });
+    },
+  });
+
+  // Upload mutation for variant images
+  const uploadVariantMutation = useMutation({
+    mutationFn: async ({ variantId, image, isPrimary }: { variantId: number; image: string; isPrimary: boolean }) => {
+      return api.uploadVariantImage(variantId, {
         filename: `upload_${Date.now()}.jpg`,
         content_type: 'image/jpeg',
         image_data: image,
@@ -121,14 +155,28 @@ export default function MobileUploadPage() {
         // Remove data URL prefix
         const imageData = img.preview.split(',')[1];
         
-        await uploadMutation.mutateAsync({
-          productId: selectedProduct.id,
-          image: imageData,
-          isPrimary: i === 0 && selectedImages.length === 1,
-        });
+        if (selectedVariant) {
+          // Upload to variant
+          await uploadVariantMutation.mutateAsync({
+            variantId: selectedVariant.id,
+            image: imageData,
+            isPrimary: i === 0 && selectedImages.length === 1,
+          });
+        } else {
+          // Upload to product
+          await uploadMutation.mutateAsync({
+            productId: selectedProduct.id,
+            image: imageData,
+            isPrimary: i === 0 && selectedImages.length === 1,
+          });
+        }
         
         setUploadProgress(((i + 1) / selectedImages.length) * 100);
       }
+
+      const targetName = selectedVariant 
+        ? `${selectedProduct.name} - ${selectedVariant.name}` 
+        : selectedProduct.name;
 
       toast({
         title: 'Upload Complete!',
@@ -141,6 +189,7 @@ export default function MobileUploadPage() {
       setUploadComplete(true);
       setSelectedImages([]);
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-variants', selectedProduct.id] });
       queryClient.invalidateQueries({ queryKey: ['product-images', productIdFromUrl] });
     } catch (error) {
       toast({
@@ -187,7 +236,7 @@ export default function MobileUploadPage() {
                   Upload Successful!
                 </h3>
                 <p className="text-muted-foreground mb-4">
-                  {uploadedCount} image{uploadedCount !== 1 ? 's' : ''} uploaded to {selectedProduct?.name}
+                  {uploadedCount} image{uploadedCount !== 1 ? 's' : ''} uploaded to {selectedVariant ? `${selectedProduct?.name} - ${selectedVariant.name}` : selectedProduct?.name}
                 </p>
                 <p className="text-sm text-muted-foreground mb-4">
                   <Smartphone className="w-4 h-4 inline mr-1" />
@@ -196,7 +245,10 @@ export default function MobileUploadPage() {
                 <div className="flex gap-3 justify-center">
                   <Button
                     variant="outline"
-                    onClick={() => setUploadComplete(false)}
+                    onClick={() => {
+                      setUploadComplete(false);
+                      setShowVariants(false);
+                    }}
                   >
                     <Camera className="w-4 h-4 mr-2" />
                     Add More Photos
@@ -206,6 +258,7 @@ export default function MobileUploadPage() {
                     onClick={() => {
                       setUploadComplete(false);
                       setSelectedProduct(null);
+                      setSelectedVariant(null);
                       setSearchQuery('');
                     }}
                   >
@@ -424,3 +477,14 @@ export default function MobileUploadPage() {
   );
 }
 
+export default function MobileUploadPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <MobileUploadPageContent />
+    </Suspense>
+  );
+}

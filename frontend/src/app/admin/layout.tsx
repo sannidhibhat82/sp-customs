@@ -17,6 +17,7 @@ import {
   X,
   ChevronRight,
   Home,
+  BarChart3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore, useUIStore } from '@/lib/store';
@@ -30,6 +31,7 @@ const sidebarItems = [
   { href: '/admin/inventory', icon: Warehouse, label: 'Inventory' },
   { href: '/admin/scanner', icon: QrCode, label: 'Scanner' },
   { href: '/admin/homepage', icon: Home, label: 'Homepage' },
+  { href: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
   { href: '/admin/settings', icon: Settings, label: 'Settings' },
 ];
 

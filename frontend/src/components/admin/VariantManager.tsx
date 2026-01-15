@@ -18,7 +18,11 @@ import {
   Upload,
   Printer,
   Barcode,
+  Smartphone,
+  Copy,
+  QrCode,
 } from 'lucide-react';
+import QRCode from 'react-qr-code';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,6 +83,10 @@ export function VariantManager({ productId, productName, productSku, productPric
   const [showImageDialog, setShowImageDialog] = useState<{ open: boolean; variantId: number | null }>({
     open: false,
     variantId: null,
+  });
+  const [showMobileUploadDialog, setShowMobileUploadDialog] = useState<{ open: boolean; variant: Variant | null }>({
+    open: false,
+    variant: null,
   });
   const [editingVariant, setEditingVariant] = useState<Variant | null>(null);
   const [expandedVariants, setExpandedVariants] = useState<Set<number>>(new Set());
@@ -483,19 +491,32 @@ export function VariantManager({ productId, productName, productSku, productPric
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
-                    {/* Upload button only for non-default variants */}
+                    {/* Upload buttons only for non-default variants */}
                     {!variant.is_default && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowImageDialog({ open: true, variantId: variant.id });
-                        }}
-                        title="Upload variant images"
-                      >
-                        <Upload className="w-4 h-4" />
-                      </Button>
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMobileUploadDialog({ open: true, variant });
+                          }}
+                          title="Mobile upload QR code"
+                        >
+                          <Smartphone className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowImageDialog({ open: true, variantId: variant.id });
+                          }}
+                          title="Upload variant images"
+                        >
+                          <Upload className="w-4 h-4" />
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="ghost"
@@ -649,17 +670,31 @@ export function VariantManager({ productId, productName, productSku, productPric
                               <span className="text-sm text-muted-foreground">
                                 Variant Images ({variant.images?.length || 0})
                               </span>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowImageDialog({ open: true, variantId: variant.id });
-                                }}
-                              >
-                                <Upload className="w-4 h-4 mr-2" />
-                                Add Image
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowMobileUploadDialog({ open: true, variant });
+                                  }}
+                                  title="Scan QR to upload from phone"
+                                >
+                                  <QrCode className="w-4 h-4 mr-2" />
+                                  Mobile
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowImageDialog({ open: true, variantId: variant.id });
+                                  }}
+                                >
+                                  <Upload className="w-4 h-4 mr-2" />
+                                  Add Image
+                                </Button>
+                              </div>
                             </div>
                             
                             {variant.images && variant.images.length > 0 ? (
@@ -904,7 +939,8 @@ export function VariantManager({ productId, productName, productSku, productPric
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4">
+          <div className="py-4 space-y-4">
+            {/* Desktop Upload */}
             <label className="block">
               <div className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors">
                 <Upload className="w-10 h-10 mx-auto mb-4 text-muted-foreground" />
@@ -920,9 +956,110 @@ export function VariantManager({ productId, productName, productSku, productPric
                 disabled={uploadImageMutation.isPending}
               />
             </label>
+            
+            {/* Mobile Upload Option */}
+            <div className="border border-border rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Smartphone className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Upload from Phone</p>
+                  <p className="text-xs text-muted-foreground">Take photos directly with your phone camera</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (showImageDialog.variantId) {
+                      const variant = variants.find((v: Variant) => v.id === showImageDialog.variantId);
+                      if (variant) {
+                        setShowImageDialog({ open: false, variantId: null });
+                        setShowMobileUploadDialog({ open: true, variant });
+                      }
+                    }
+                  }}
+                >
+                  <QrCode className="w-4 h-4 mr-2" />
+                  Show QR
+                </Button>
+              </div>
+            </div>
+            
             {uploadImageMutation.isPending && (
-              <p className="text-center text-muted-foreground mt-4">Uploading...</p>
+              <p className="text-center text-muted-foreground">Uploading...</p>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mobile Upload QR Code Dialog */}
+      <Dialog 
+        open={showMobileUploadDialog.open} 
+        onOpenChange={(open) => setShowMobileUploadDialog({ open, variant: null })}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Smartphone className="w-5 h-5" />
+              Mobile Upload
+            </DialogTitle>
+            <DialogDescription>
+              Scan this QR code with your phone to upload images for{' '}
+              <span className="font-medium text-foreground">{showMobileUploadDialog.variant?.name}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-6">
+            {/* QR Code */}
+            <div className="flex justify-center mb-6">
+              <div className="p-4 bg-white rounded-xl shadow-lg">
+                {showMobileUploadDialog.variant && (
+                  <QRCode
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/mobile/upload?product=${productId}&variant=${showMobileUploadDialog.variant.id}`}
+                    size={200}
+                    level="M"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Instructions */}
+            <div className="space-y-3 text-sm">
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-medium shrink-0">1</span>
+                <p className="text-muted-foreground">Open your phone's camera app</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-medium shrink-0">2</span>
+                <p className="text-muted-foreground">Point at the QR code to scan</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-medium shrink-0">3</span>
+                <p className="text-muted-foreground">Take photos or select from gallery</p>
+              </div>
+            </div>
+
+            {/* Copy Link Option */}
+            <div className="mt-6 pt-4 border-t border-border">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  if (showMobileUploadDialog.variant) {
+                    const uploadUrl = `${window.location.origin}/mobile/upload?product=${productId}&variant=${showMobileUploadDialog.variant.id}`;
+                    navigator.clipboard.writeText(uploadUrl);
+                    toast({ 
+                      title: 'Link copied!', 
+                      description: 'Share or open this link on your phone',
+                    });
+                  }
+                }}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy Link Instead
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

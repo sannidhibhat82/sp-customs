@@ -308,12 +308,34 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user)
 ):
-    """Create a new product with auto-generated codes."""
+    """Create a new product with auto-generated or custom codes."""
     # Get existing slugs
     result = await db.execute(select(Product.slug))
     existing_slugs = [row[0] for row in result.fetchall()]
     
     slug = generate_slug(data.name, existing_slugs)
+    
+    # Check if custom SKU is provided and validate uniqueness
+    if data.custom_sku:
+        # Check if SKU already exists
+        existing_sku = await db.execute(
+            select(Product).where(Product.sku == data.custom_sku)
+        )
+        if existing_sku.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"SKU '{data.custom_sku}' already exists. Please use a unique SKU."
+            )
+        
+        # Check if barcode already exists (same as SKU for custom)
+        existing_barcode = await db.execute(
+            select(Product).where(Product.barcode == data.custom_sku)
+        )
+        if existing_barcode.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Barcode '{data.custom_sku}' already exists."
+            )
     
     # Create product first to get ID
     product = Product(
@@ -342,12 +364,21 @@ async def create_product(
     db.add(product)
     await db.flush()
     
-    # Generate SKU, barcode, and QR code
-    codes = BarcodeGenerator.generate_product_codes(product.id, product.name)
-    product.sku = codes["sku"]
-    product.barcode = codes["barcode"]
-    product.barcode_data = codes["barcode_data"]
-    product.qr_code_data = codes["qr_code_data"]
+    # Generate SKU, barcode, and QR code (use custom SKU if provided)
+    if data.custom_sku:
+        # Use custom SKU and generate barcode from it
+        codes = BarcodeGenerator.generate_barcode_from_sku(data.custom_sku, product.id)
+        product.sku = data.custom_sku
+        product.barcode = data.custom_sku  # Use SKU as barcode
+        product.barcode_data = codes["barcode_data"]
+        product.qr_code_data = codes["qr_code_data"]
+    else:
+        # Auto-generate everything
+        codes = BarcodeGenerator.generate_product_codes(product.id, product.name)
+        product.sku = codes["sku"]
+        product.barcode = codes["barcode"]
+        product.barcode_data = codes["barcode_data"]
+        product.qr_code_data = codes["qr_code_data"]
     
     # Create inventory record
     inventory = Inventory(

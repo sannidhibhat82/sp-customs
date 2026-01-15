@@ -88,8 +88,8 @@ function LoadingScreen({ onComplete }: { onComplete: () => void }) {
             key={i}
             className="absolute w-1 h-1 bg-primary/30 rounded-full"
             initial={{
-              x: Math.random() * window.innerWidth,
-              y: Math.random() * window.innerHeight,
+              x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1000),
+              y: Math.random() * (typeof window !== 'undefined' ? window.innerHeight : 800),
               scale: Math.random() * 0.5 + 0.5,
             }}
             animate={{

@@ -57,6 +57,7 @@ class ProductBase(BaseModel):
 
 class ProductCreate(ProductBase):
     initial_quantity: int = 0
+    custom_sku: Optional[str] = Field(None, max_length=100, description="Optional custom SKU. If provided, barcode will be generated from this.")
 
 
 class ProductUpdate(BaseModel):
