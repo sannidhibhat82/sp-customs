@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Header, Footer } from '@/components/public';
 import { toast } from '@/components/ui/use-toast';
+import { WHATSAPP_NUMBER, PHONE_DISPLAY, getPhoneUrl, getWhatsAppUrl } from '@/lib/utils';
 
 export default function ContactPage() {
   const [form, setForm] = useState({
@@ -45,7 +46,7 @@ ${form.message}
 
     // Open WhatsApp
     window.open(
-      `https://wa.me/919876543210?text=${encodeURIComponent(message)}`,
+      `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
       '_blank'
     );
 
@@ -96,7 +97,7 @@ ${form.message}
             <div className="space-y-6">
               {/* Phone */}
               <a
-                href="tel:+919876543210"
+                href={getPhoneUrl()}
                 className="flex items-start gap-4 p-4 bg-card rounded-xl border border-border hover:border-primary transition-colors group"
               >
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
@@ -104,14 +105,14 @@ ${form.message}
                 </div>
                 <div>
                   <h3 className="font-semibold mb-1">Phone</h3>
-                  <p className="text-muted-foreground">+91 98765 43210</p>
+                  <p className="text-muted-foreground">{PHONE_DISPLAY}</p>
                   <p className="text-xs text-primary mt-1">Click to call</p>
                 </div>
               </a>
 
               {/* WhatsApp */}
               <a
-                href="https://wa.me/919876543210?text=Hi! I have a question about your products."
+                href={getWhatsAppUrl("Hi! I have a question about your products.")}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-start gap-4 p-4 bg-card rounded-xl border border-border hover:border-green-500 transition-colors group"
@@ -121,7 +122,7 @@ ${form.message}
                 </div>
                 <div>
                   <h3 className="font-semibold mb-1">WhatsApp</h3>
-                  <p className="text-muted-foreground">+91 98765 43210</p>
+                  <p className="text-muted-foreground">{PHONE_DISPLAY}</p>
                   <p className="text-xs text-green-500 mt-1">Fastest response</p>
                 </div>
               </a>
@@ -142,19 +143,25 @@ ${form.message}
               </a>
 
               {/* Address */}
-              <div className="flex items-start gap-4 p-4 bg-card rounded-xl border border-border">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <a 
+                href="https://maps.google.com/?q=377/6,+Kottara,+Mangaluru,+Karnataka+575006"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start gap-4 p-4 bg-card rounded-xl border border-border hover:border-primary/50 transition-colors group"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
                   <MapPin className="w-6 h-6 text-primary" />
                 </div>
                 <div>
                   <h3 className="font-semibold mb-1">Visit Us</h3>
                   <p className="text-muted-foreground">
-                    123 Auto Street, Koramangala<br />
-                    Bangalore, Karnataka 560034<br />
+                    377/6, Kottara<br />
+                    Mangaluru, Karnataka 575006<br />
                     India
                   </p>
+                  <p className="text-xs text-primary mt-1">Click to open in Maps</p>
                 </div>
-              </div>
+              </a>
 
               {/* Hours */}
               <div className="flex items-start gap-4 p-4 bg-card rounded-xl border border-border">
@@ -275,10 +282,10 @@ ${form.message}
               </form>
             </div>
 
-            {/* Map placeholder */}
-            <div className="mt-8 h-64 bg-card rounded-2xl border border-border overflow-hidden">
+            {/* Map */}
+            <div className="mt-8 h-72 bg-card rounded-2xl border border-border overflow-hidden">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3888.5956883943795!2d77.6152!3d12.9356!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTLCsDU2JzA4LjIiTiA3N8KwMzYnNTQuNyJF!5e0!3m2!1sen!2sin!4v1234567890"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3889.0!2d74.856!3d12.9141!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3ba35a4c37bf488b%3A0x827bbc7a74fcfe64!2sKottara%2C%20Mangaluru%2C%20Karnataka%20575006!5e0!3m2!1sen!2sin!4v1705329600000!5m2!1sen!2sin"
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}
@@ -286,6 +293,7 @@ ${form.message}
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 className="grayscale hover:grayscale-0 transition-all"
+                title="SP Customs Location - Kottara, Mangaluru"
               />
             </div>
           </motion.div>

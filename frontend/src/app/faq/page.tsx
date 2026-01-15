@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Header, Footer } from '@/components/public';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, getWhatsAppUrl } from '@/lib/utils';
 
 interface FAQQuestion {
   id: number;
@@ -174,7 +174,7 @@ export default function FAQPage() {
               Can't find what you're looking for? Our support team is here to help.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="https://wa.me/919876543210?text=Hi! I have a question." target="_blank">
+              <Link href={getWhatsAppUrl("Hi! I have a question.")} target="_blank">
                 <Button size="lg" className="text-lg px-8">
                   Chat on WhatsApp
                 </Button>

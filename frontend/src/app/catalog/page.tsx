@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { api } from '@/lib/api';
-import { formatCurrency, getImageSrc, generateWhatsAppLink, cn } from '@/lib/utils';
+import { formatCurrency, getImageSrc, generateWhatsAppLink, cn, getWhatsAppUrl } from '@/lib/utils';
 
 function CatalogPageContent() {
   const router = useRouter();
@@ -129,7 +129,7 @@ function CatalogPageContent() {
               >
                 <Filter className="w-4 h-4" />
               </Button>
-              <Link href="https://wa.me/919999999999" target="_blank">
+              <Link href={getWhatsAppUrl()} target="_blank">
                 <Button>
                   <MessageCircle className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Contact Us</span>

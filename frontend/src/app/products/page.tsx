@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Header, Footer } from '@/components/public';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, getWhatsAppUrl } from '@/lib/utils';
 
 // Helper function to get proper image src from base64 data
 function getImageSrc(imageData: string | undefined): string | undefined {
@@ -118,7 +118,7 @@ function ProductCard({ product, view }: { product: any; view: 'grid' | 'list' })
                 </Button>
               </Link>
               <Link
-                href={`https://wa.me/919876543210?text=Hi! I'm interested in ${encodeURIComponent(product.name)}`}
+                href={getWhatsAppUrl(`Hi! I'm interested in ${product.name}`)}
                 target="_blank"
               >
                 <Button size="sm" className="h-8 px-3 bg-green-600 hover:bg-green-700">

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { RotateCcw, CheckCircle, XCircle, Clock, ArrowRight, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Header, Footer } from '@/components/public';
+import { getWhatsAppUrl } from '@/lib/utils';
 
 const returnableItems = [
   'Unopened products in original packaging',
@@ -196,7 +197,7 @@ export default function ReturnsPage() {
           <h2 className="text-2xl font-bold mb-4">Need to Return Something?</h2>
           <p className="text-muted-foreground mb-8">Contact our support team to initiate a return.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="https://wa.me/919876543210?text=Hi! I need to return a product." target="_blank">
+            <Link href={getWhatsAppUrl("Hi! I need to return a product.")} target="_blank">
               <Button size="lg">
                 Initiate Return
                 <ArrowRight className="w-4 h-4 ml-2" />

@@ -38,7 +38,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Header, Footer } from '@/components/public';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, getWhatsAppUrl, getPhoneUrl } from '@/lib/utils';
 import { useUIStore } from '@/lib/store';
 import { toast } from '@/components/ui/use-toast';
 
@@ -654,7 +654,7 @@ export default function HomePage() {
                         Explore Products <ArrowRight className="w-5 h-5" />
                       </Button>
                     </Link>
-                    <Link href="https://wa.me/919876543210" target="_blank">
+                    <Link href={getWhatsAppUrl()} target="_blank">
                       <Button size="lg" variant="outline" className="gap-2 text-base h-14 px-8 border-2">
                         <MessageCircle className="w-5 h-5" /> Get Quote
                       </Button>
@@ -1298,12 +1298,12 @@ export default function HomePage() {
                 Contact us for personalized recommendations and exclusive deals on premium car gadgets
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="https://wa.me/919876543210?text=Hi! I want to upgrade my car." target="_blank">
+                <Link href={getWhatsAppUrl("Hi! I want to upgrade my car.")} target="_blank">
                   <Button size="lg" variant="secondary" className="gap-2 h-14 px-8 text-base shadow-xl">
                     <MessageCircle className="w-5 h-5" /> Chat on WhatsApp
                   </Button>
                 </Link>
-                <Link href="tel:+919876543210">
+                <Link href={getPhoneUrl()}>
                   <Button 
                     size="lg" 
                     variant="outline" 
@@ -1321,7 +1321,7 @@ export default function HomePage() {
 
         {/* Floating WhatsApp */}
         <motion.a
-          href="https://wa.me/919876543210"
+          href={getWhatsAppUrl()}
           target="_blank"
           rel="noopener noreferrer"
           className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/30"

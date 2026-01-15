@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { usePublicThemeStore, useUIStore } from '@/lib/store';
-import { cn } from '@/lib/utils';
+import { cn, getWhatsAppUrl } from '@/lib/utils';
 
 const accentColors = [
   { name: 'orange', color: '#f97316', label: 'Orange' },
@@ -230,7 +230,7 @@ export default function Header() {
 
               {/* Enquire CTA - Uses theme accent color */}
               <Link
-                href="https://wa.me/919876543210?text=Hi! I'm interested in your car gadgets."
+                href={getWhatsAppUrl("Hi! I'm interested in your car gadgets.")}
                 target="_blank"
                 className="hidden sm:block"
               >
@@ -438,7 +438,7 @@ export default function Header() {
                   </div>
 
                   <Link
-                    href="https://wa.me/919876543210?text=Hi! I'm interested in your car gadgets."
+                    href={getWhatsAppUrl("Hi! I'm interested in your car gadgets.")}
                     target="_blank"
                     className="block px-4"
                   >

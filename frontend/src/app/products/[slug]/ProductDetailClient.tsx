@@ -20,7 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Header, Footer } from '@/components/public';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, WHATSAPP_NUMBER, getPhoneUrl } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
 
 // Helper function to get proper image src from base64 data
@@ -529,7 +529,7 @@ Can you provide more details about this product?`
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Link
-                href={`https://wa.me/919876543210?text=${encodeURIComponent(whatsappMessage)}`}
+                href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`}
                 target="_blank"
                 className="flex-1"
               >
@@ -543,7 +543,7 @@ Can you provide more details about this product?`
                   Enquire Now
                 </Button>
               </Link>
-              <a href="tel:+919876543210">
+              <a href={getPhoneUrl()}>
                 <Button size="lg" variant="outline" className="h-14">
                   <Phone className="w-5 h-5 mr-2" />
                   Call Us

@@ -33,12 +33,15 @@ export function formatDateTime(date: string | Date): string {
   }).format(new Date(date));
 }
 
+// WhatsApp number from environment variable (without + prefix, e.g., 919876543210)
+export const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "919876543210";
+export const PHONE_DISPLAY = process.env.NEXT_PUBLIC_PHONE_DISPLAY || "+91 98765 43210";
+
 export function generateWhatsAppLink(product: {
   name: string;
   sku: string;
   price?: number | null;
 }): string {
-  const phoneNumber = "919999999999"; // Replace with actual phone number
   const message = encodeURIComponent(
     `Hi, I'm interested in:\n\n` +
     `*${product.name}*\n` +
@@ -46,7 +49,18 @@ export function generateWhatsAppLink(product: {
     `${product.price ? `Price: ${formatCurrency(product.price)}\n` : ''}` +
     `\nPlease provide more details.`
   );
-  return `https://wa.me/${phoneNumber}?text=${message}`;
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
+}
+
+export function getWhatsAppUrl(message?: string): string {
+  if (message) {
+    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+  }
+  return `https://wa.me/${WHATSAPP_NUMBER}`;
+}
+
+export function getPhoneUrl(): string {
+  return `tel:+${WHATSAPP_NUMBER}`;
 }
 
 export function getImageSrc(imageData: string | null | undefined): string {

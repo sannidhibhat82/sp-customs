@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PHONE_DISPLAY, getPhoneUrl } from '@/lib/utils';
 
 const footerLinks = {
   products: [
@@ -88,18 +89,23 @@ export default function Footer() {
             
             {/* Contact Info */}
             <div className="space-y-3 text-sm">
-              <a href="tel:+919876543210" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors">
+              <a href={getPhoneUrl()} className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors">
                 <Phone className="w-4 h-4" />
-                +91 98765 43210
+                {PHONE_DISPLAY}
               </a>
               <a href="mailto:contact@spcustoms.com" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors">
                 <Mail className="w-4 h-4" />
                 contact@spcustoms.com
               </a>
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <MapPin className="w-4 h-4 flex-shrink-0" />
-                Bangalore, Karnataka, India
-              </div>
+              <a 
+                href="https://maps.google.com/?q=377/6,+Kottara,+Mangaluru,+Karnataka+575006" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-start gap-3 text-muted-foreground hover:text-primary transition-colors"
+              >
+                <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>377/6, Kottara, Mangaluru,<br />Karnataka 575006</span>
+              </a>
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Clock className="w-4 h-4" />
                 Mon - Sat: 10:00 AM - 8:00 PM

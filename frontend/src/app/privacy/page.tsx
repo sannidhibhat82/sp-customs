@@ -162,8 +162,8 @@ export default function PrivacyPage() {
                   </p>
                   <ul className="list-none mt-4 space-y-2">
                     <li><strong>Email:</strong> privacy@spcustoms.com</li>
-                    <li><strong>Phone:</strong> +91 98765 43210</li>
-                    <li><strong>Address:</strong> Bangalore, Karnataka, India</li>
+                    <li><strong>Phone:</strong> Contact via WhatsApp or website</li>
+                    <li><strong>Address:</strong> 377/6, Kottara, Mangaluru, Karnataka 575006</li>
                   </ul>
                 </div>
               </div>

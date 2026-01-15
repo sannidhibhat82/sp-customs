@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Shield, CheckCircle, XCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Header, Footer } from '@/components/public';
+import { getWhatsAppUrl } from '@/lib/utils';
 
 const warrantyTerms = [
   {
@@ -181,7 +182,7 @@ export default function WarrantyPage() {
           <h2 className="text-2xl font-bold mb-4">Need Help with Warranty?</h2>
           <p className="text-muted-foreground mb-8">Contact our support team for any warranty-related queries.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="https://wa.me/919876543210?text=Hi! I need help with a warranty claim." target="_blank">
+            <Link href={getWhatsAppUrl("Hi! I need help with a warranty claim.")} target="_blank">
               <Button size="lg">
                 Contact Support
                 <ArrowRight className="w-4 h-4 ml-2" />
