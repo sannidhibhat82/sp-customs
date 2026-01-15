@@ -16,8 +16,9 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Python virtualenv lib folders (root level only, not frontend/src/lib)
+/lib/
+/lib64/
 parts/
 sdist/
 var/
