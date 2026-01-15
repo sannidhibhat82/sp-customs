@@ -15,8 +15,12 @@ export const metadata: Metadata = {
   authors: [{ name: 'SP Customs' }],
   manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
-    apple: '/apple-touch-icon.png',
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon-light.svg', type: 'image/svg+xml', media: '(prefers-color-scheme: light)' },
+      { url: '/favicon-dark.svg', type: 'image/svg+xml', media: '(prefers-color-scheme: dark)' },
+    ],
+    apple: '/favicon.svg',
   },
   openGraph: {
     siteName: 'SP Customs',

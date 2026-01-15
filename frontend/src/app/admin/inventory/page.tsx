@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronRight,
   Palette,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,6 +59,7 @@ export default function InventoryPage() {
   const [productVariants, setProductVariants] = useState<Record<number, any[]>>({});
   const [loadingVariants, setLoadingVariants] = useState<Set<number>>(new Set());
   const [productsWithoutVariants, setProductsWithoutVariants] = useState<Set<number>>(new Set());
+  const [variantCheckDone, setVariantCheckDone] = useState<Set<number>>(new Set());
   const PAGE_SIZE = 20;
 
   // Fetch products with inventory
@@ -83,6 +85,35 @@ export default function InventoryPage() {
     queryFn: () => api.getInventoryLogs(historyDialog.productId!, 20),
     enabled: !!historyDialog.productId,
   });
+
+  // Pre-fetch variant info for visible products
+  const checkProductVariants = useCallback(async (productIds: number[]) => {
+    const uncheckedIds = productIds.filter(id => !variantCheckDone.has(id));
+    if (uncheckedIds.length === 0) return;
+
+    // Check each product for variants
+    for (const productId of uncheckedIds) {
+      try {
+        const variants = await api.getProductVariants(productId);
+        setProductVariants(prev => ({ ...prev, [productId]: variants }));
+        if (!variants || variants.length === 0) {
+          setProductsWithoutVariants(prev => new Set(prev).add(productId));
+        }
+      } catch {
+        setProductsWithoutVariants(prev => new Set(prev).add(productId));
+        setProductVariants(prev => ({ ...prev, [productId]: [] }));
+      }
+      setVariantCheckDone(prev => new Set(prev).add(productId));
+    }
+  }, [variantCheckDone]);
+
+  // Check variants when products load
+  useEffect(() => {
+    if (products?.items?.length) {
+      const productIds = products.items.map((p: any) => p.id);
+      checkProductVariants(productIds);
+    }
+  }, [products?.items, checkProductVariants]);
 
   // Update mutation for products
   const updateMutation = useMutation({
@@ -200,7 +231,14 @@ export default function InventoryPage() {
     if (productVariants[productId] !== undefined) {
       return productVariants[productId].length > 0;
     }
-    return null; // Unknown yet
+    // If we've checked this product but found nothing, return false
+    if (variantCheckDone.has(productId)) return false;
+    return null; // Unknown yet - still checking
+  };
+
+  // Check if variant check is in progress
+  const isCheckingVariants = (productId: number): boolean => {
+    return !variantCheckDone.has(productId);
   };
 
   const statCards = [
@@ -346,22 +384,24 @@ export default function InventoryPage() {
                     <>
                       <tr key={product.id} className="hover:bg-secondary/30">
                         <td className="w-8 px-2">
-                          {hasVariants(product.id) !== false ? (
+                          {isCheckingVariants(product.id) ? (
+                            <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                          ) : hasVariants(product.id) ? (
                             <button
                               onClick={() => toggleExpand(product.id)}
                               className={cn(
                                 "p-1 rounded hover:bg-secondary",
                                 loadingVariants.has(product.id) && "opacity-50"
                               )}
-                              title={hasVariants(product.id) === null ? "Check for variants" : "Show variants"}
+                              title="Show variants"
                               disabled={loadingVariants.has(product.id)}
                             >
                               {loadingVariants.has(product.id) ? (
                                 <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                               ) : expandedProducts.has(product.id) ? (
-                                <ChevronDown className="w-4 h-4" />
+                                <ChevronDown className="w-4 h-4 text-primary" />
                               ) : (
-                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                                <Layers className="w-4 h-4 text-muted-foreground" />
                               )}
                             </button>
                           ) : (

@@ -124,10 +124,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {/* Logo */}
               <div className="h-16 flex items-center justify-between px-4 border-b border-border">
                 <Link href="/admin" className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-                    <span className="text-xl font-bold text-white">SP</span>
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                    <span className="text-xl font-bold text-white tracking-tight">SP</span>
                   </div>
-                  <span className="text-lg font-bold">CUSTOMS</span>
+                  <div className="flex flex-col">
+                    <span className="text-lg font-bold leading-tight">CUSTOMS</span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">Admin Panel</span>
+                  </div>
                 </Link>
                 {isMobile && (
                   <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-secondary rounded-lg">
