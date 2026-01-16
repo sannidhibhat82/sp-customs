@@ -228,3 +228,152 @@ export const useCartStore = create<CartState>()(
   )
 );
 
+// Order Item for creating orders
+export interface OrderItemData {
+  productId: number;
+  variantId?: number;
+  productName: string;
+  productSku: string;
+  productBarcode?: string;
+  variantName?: string;
+  variantOptions?: Record<string, any>;
+  unitPrice: number;
+  quantity: number;
+  discount: number;
+  productImage?: string;
+  availableQuantity: number;
+}
+
+// Shipping Info
+export interface ShippingInfoData {
+  customer_name: string;
+  email: string;
+  phone: string;
+  address_line1: string;
+  address_line2: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  landmark: string;
+  delivery_instructions: string;
+}
+
+interface OrderState {
+  items: OrderItemData[];
+  shippingInfo: ShippingInfoData;
+  paymentInfo: {
+    method: string;
+    status: string;
+  };
+  notes: string;
+  discountAmount: number;
+  shippingCost: number;
+  taxAmount: number;
+  addItem: (item: OrderItemData) => void;
+  removeItem: (productId: number, variantId?: number) => void;
+  updateItemQuantity: (productId: number, quantity: number, variantId?: number) => void;
+  setShippingInfo: (info: Partial<ShippingInfoData>) => void;
+  setPaymentInfo: (info: { method?: string; status?: string }) => void;
+  setNotes: (notes: string) => void;
+  setDiscountAmount: (amount: number) => void;
+  setShippingCost: (cost: number) => void;
+  setTaxAmount: (amount: number) => void;
+  clearOrder: () => void;
+  getSubtotal: () => number;
+  getTotal: () => number;
+}
+
+const defaultShippingInfo: ShippingInfoData = {
+  customer_name: '',
+  email: '',
+  phone: '',
+  address_line1: '',
+  address_line2: '',
+  city: '',
+  state: '',
+  postal_code: '',
+  country: 'India',
+  landmark: '',
+  delivery_instructions: '',
+};
+
+export const useOrderStore = create<OrderState>((set, get) => ({
+  items: [],
+  shippingInfo: defaultShippingInfo,
+  paymentInfo: {
+    method: 'cash',
+    status: 'pending',
+  },
+  notes: '',
+  discountAmount: 0,
+  shippingCost: 0,
+  taxAmount: 0,
+  addItem: (item) =>
+    set((state) => {
+      const existing = state.items.find(
+        (i) => i.productId === item.productId && i.variantId === item.variantId
+      );
+      if (existing) {
+        return {
+          items: state.items.map((i) =>
+            i.productId === item.productId && i.variantId === item.variantId
+              ? { ...i, quantity: i.quantity + item.quantity }
+              : i
+          ),
+        };
+      }
+      return { items: [...state.items, item] };
+    }),
+  removeItem: (productId, variantId) =>
+    set((state) => ({
+      items: state.items.filter(
+        (i) => !(i.productId === productId && i.variantId === variantId)
+      ),
+    })),
+  updateItemQuantity: (productId, quantity, variantId) =>
+    set((state) => ({
+      items: state.items.map((i) =>
+        i.productId === productId && i.variantId === variantId
+          ? { ...i, quantity }
+          : i
+      ),
+    })),
+  setShippingInfo: (info) =>
+    set((state) => ({
+      shippingInfo: { ...state.shippingInfo, ...info },
+    })),
+  setPaymentInfo: (info) =>
+    set((state) => ({
+      paymentInfo: { ...state.paymentInfo, ...info },
+    })),
+  setNotes: (notes) => set({ notes }),
+  setDiscountAmount: (amount) => set({ discountAmount: amount }),
+  setShippingCost: (cost) => set({ shippingCost: cost }),
+  setTaxAmount: (amount) => set({ taxAmount: amount }),
+  clearOrder: () =>
+    set({
+      items: [],
+      shippingInfo: defaultShippingInfo,
+      paymentInfo: { method: 'cash', status: 'pending' },
+      notes: '',
+      discountAmount: 0,
+      shippingCost: 0,
+      taxAmount: 0,
+    }),
+  getSubtotal: () => {
+    const { items } = get();
+    return items.reduce(
+      (total, item) => total + (item.unitPrice * item.quantity) - item.discount,
+      0
+    );
+  },
+  getTotal: () => {
+    const { items, discountAmount, shippingCost, taxAmount } = get();
+    const subtotal = items.reduce(
+      (total, item) => total + (item.unitPrice * item.quantity) - item.discount,
+      0
+    );
+    return subtotal - discountAmount + shippingCost + taxAmount;
+  },
+}));

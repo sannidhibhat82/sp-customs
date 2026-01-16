@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Home,
   BarChart3,
+  ShoppingCart,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore, useUIStore } from '@/lib/store';
@@ -25,6 +26,7 @@ import { cn } from '@/lib/utils';
 
 const sidebarItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
   { href: '/admin/products', icon: Package, label: 'Products' },
   { href: '/admin/categories', icon: Layers, label: 'Categories' },
   { href: '/admin/brands', icon: Tags, label: 'Brands' },

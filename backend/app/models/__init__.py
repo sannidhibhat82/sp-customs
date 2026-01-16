@@ -16,6 +16,7 @@ from app.models.homepage import (
     FAQCategory,
     FAQQuestion,
 )
+from app.models.order import Order, OrderItem
 
 __all__ = [
     "Category",
@@ -40,5 +41,7 @@ __all__ = [
     "NewsletterSubscription",
     "FAQCategory",
     "FAQQuestion",
+    "Order",
+    "OrderItem",
 ]
 

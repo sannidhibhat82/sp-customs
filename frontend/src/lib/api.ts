@@ -670,6 +670,94 @@ class ApiClient {
     return response.data;
   }
 
+  // ============ Orders ============
+
+  async getOrders(params?: { status?: string; page?: number; page_size?: number }) {
+    const response = await this.client.get('/orders', { params });
+    return response.data;
+  }
+
+  async getOrderStats() {
+    const response = await this.client.get('/orders/stats');
+    return response.data;
+  }
+
+  async getOrder(orderId: number) {
+    const response = await this.client.get(`/orders/${orderId}`);
+    return response.data;
+  }
+
+  async createOrder(data: {
+    items: Array<{
+      product_id?: number;
+      variant_id?: number;
+      product_name: string;
+      product_sku: string;
+      product_barcode?: string;
+      variant_name?: string;
+      variant_options?: Record<string, any>;
+      unit_price: number;
+      quantity: number;
+      discount?: number;
+      product_image?: string;
+      extra_data?: Record<string, any>;
+    }>;
+    shipping_info?: Record<string, any>;
+    billing_info?: Record<string, any>;
+    shipping_details?: Record<string, any>;
+    payment_info?: Record<string, any>;
+    invoice_data?: Record<string, any>;
+    metadata?: Record<string, any>;
+    discount_amount?: number;
+    shipping_cost?: number;
+    tax_amount?: number;
+    internal_notes?: string;
+    customer_notes?: string;
+  }) {
+    const response = await this.client.post('/orders', data);
+    return response.data;
+  }
+
+  async updateOrder(orderId: number, data: {
+    status?: string;
+    shipping_info?: Record<string, any>;
+    billing_info?: Record<string, any>;
+    shipping_details?: Record<string, any>;
+    payment_info?: Record<string, any>;
+    invoice_data?: Record<string, any>;
+    metadata?: Record<string, any>;
+    discount_amount?: number;
+    shipping_cost?: number;
+    tax_amount?: number;
+    internal_notes?: string;
+    customer_notes?: string;
+  }) {
+    const response = await this.client.put(`/orders/${orderId}`, data);
+    return response.data;
+  }
+
+  async deleteOrder(orderId: number) {
+    const response = await this.client.delete(`/orders/${orderId}`);
+    return response.data;
+  }
+
+  async scanProductForOrder(data: {
+    barcode?: string;
+    product_id?: number;
+    variant_id?: number;
+    quantity?: number;
+  }) {
+    const response = await this.client.post('/orders/scan', data);
+    return response.data;
+  }
+
+  async updateOrderStatus(orderId: number, status: string) {
+    const response = await this.client.post(`/orders/${orderId}/update-status`, null, {
+      params: { status }
+    });
+    return response.data;
+  }
+
 }
 
 export const api = new ApiClient();
