@@ -178,6 +178,7 @@ async def search_products(
     
     result = await db.execute(
         select(Product)
+        .options(selectinload(Product.images), selectinload(Product.inventory))
         .where(
             Product.is_active == True,
             or_(
@@ -197,6 +198,9 @@ async def search_products(
             "name": p.name,
             "sku": p.sku,
             "barcode": p.barcode,
+            "price": float(p.price) if p.price else 0,
+            "quantity": p.inventory.available_quantity if p.inventory else 0,
+            "primary_image": p.primary_image,
         }
         for p in products
     ]

@@ -342,6 +342,55 @@ export default function OrdersPage() {
       handleScan(manualBarcode.trim());
     }
   };
+
+  // Handle adding product from search results
+  const handleAddProduct = useCallback((product: any) => {
+    if (!product) return;
+    
+    // Check stock
+    if (product.quantity <= 0) {
+      toast({
+        title: 'Out of Stock',
+        description: `${product.name} is currently out of stock`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Check if already in cart
+    const existingItem = items.find(i => i.productId === product.id);
+    if (existingItem && existingItem.quantity >= product.quantity) {
+      toast({
+        title: 'Stock Limit Reached',
+        description: `Only ${product.quantity} units available`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const newItem: OrderItemData = {
+      productId: product.id,
+      variantId: undefined,
+      productName: product.name,
+      productSku: product.sku,
+      productBarcode: product.barcode,
+      variantName: undefined,
+      variantOptions: {},
+      unitPrice: parseFloat(product.price) || 0,
+      quantity: 1,
+      discount: 0,
+      productImage: product.primary_image,
+      availableQuantity: product.quantity || 0,
+    };
+    
+    addItem(newItem);
+    
+    toast({
+      title: '✅ Product Added',
+      description: product.name,
+      variant: 'success',
+    });
+  }, [items, addItem]);
   
   const subtotal = getSubtotal();
   const total = getTotal();
@@ -790,6 +839,7 @@ export default function OrdersPage() {
                     removeItem={removeItem}
                     setActiveStep={setActiveStep}
                     scanMutation={scanMutation}
+                    onAddProduct={handleAddProduct}
                   />
                 )}
                 {activeStep === 'shipping' && (
@@ -1261,7 +1311,57 @@ function ScanProductsStep({
   removeItem,
   setActiveStep,
   scanMutation,
+  onAddProduct,
 }: any) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Search products as user types
+  useEffect(() => {
+    const searchProducts = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSearchResults([]);
+        return;
+      }
+      
+      setIsSearching(true);
+      try {
+        const results = await api.searchProducts(searchQuery, 10);
+        setSearchResults(results);
+        setShowSearchResults(true);
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const debounce = setTimeout(searchProducts, 300);
+    return () => clearTimeout(debounce);
+  }, [searchQuery]);
+
+  // Close search results when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectProduct = (product: any) => {
+    onAddProduct(product);
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchResults(false);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -1272,48 +1372,121 @@ function ScanProductsStep({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Scan className="w-5 h-5" />
-            Scan Products
+            Add Products
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Scanner Input */}
-          <form onSubmit={handleBarcodeSubmit} className="space-y-4">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Scan className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  ref={barcodeInputRef}
-                  type="text"
-                  placeholder="Scan barcode or enter SKU..."
-                  value={manualBarcode}
-                  onChange={(e) => setManualBarcode(e.target.value)}
-                  className="pl-10 h-12 text-lg"
-                  autoFocus
-                />
-              </div>
-              <Button type="submit" disabled={isScanning || !manualBarcode.trim()} className="h-12 px-6">
-                {isScanning ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add
-                  </>
-                )}
-              </Button>
+          {/* Product Search */}
+          <div ref={searchRef} className="relative">
+            <label className="text-sm font-medium mb-2 block">Search Products</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search by product name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
+                className="pl-10 h-12 text-lg"
+              />
+              {isSearching && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                </div>
+              )}
             </div>
             
-            <div className="flex items-center gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowMobileQR(!showMobileQR)}
-              >
-                <Smartphone className="w-4 h-4 mr-2" />
-                Mobile Scanner
-              </Button>
-            </div>
-          </form>
+            {/* Search Results Dropdown */}
+            {showSearchResults && searchResults.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-80 overflow-y-auto">
+                {searchResults.map((product: any) => (
+                  <button
+                    key={product.id}
+                    onClick={() => handleSelectProduct(product)}
+                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors border-b last:border-b-0 text-left"
+                  >
+                    {product.primary_image ? (
+                      <img 
+                        src={formatImageUrl(product.primary_image) || ''} 
+                        alt={product.name} 
+                        className="w-12 h-12 rounded object-cover" 
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center">
+                        <Package className="w-6 h-6 text-gray-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{product.name}</p>
+                      <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Stock: {product.quantity || 0} available
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-primary">{formatCurrency(product.price)}</p>
+                      {product.quantity <= 0 && (
+                        <span className="inline-block px-2 py-0.5 bg-red-100 text-red-600 text-xs font-medium rounded">Out of Stock</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            {showSearchResults && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+              <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg p-4 text-center text-muted-foreground">
+                No products found for "{searchQuery}"
+              </div>
+            )}
+          </div>
+
+          <div className="relative flex items-center">
+            <div className="flex-1 border-t border-gray-200" />
+            <span className="px-4 text-sm text-muted-foreground bg-white">or</span>
+            <div className="flex-1 border-t border-gray-200" />
+          </div>
+
+          {/* Scanner Input */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">Scan Barcode / Enter SKU</label>
+            <form onSubmit={handleBarcodeSubmit} className="space-y-4">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Scan className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    ref={barcodeInputRef}
+                    type="text"
+                    placeholder="Scan barcode or enter SKU..."
+                    value={manualBarcode}
+                    onChange={(e) => setManualBarcode(e.target.value)}
+                    className="pl-10 h-12 text-lg"
+                  />
+                </div>
+                <Button type="submit" disabled={isScanning || !manualBarcode.trim()} className="h-12 px-6">
+                  {isScanning ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowMobileQR(!showMobileQR)}
+                >
+                  <Smartphone className="w-4 h-4 mr-2" />
+                  Mobile Scanner
+                </Button>
+              </div>
+            </form>
+          </div>
           
           {/* Mobile QR */}
           {showMobileQR && (
