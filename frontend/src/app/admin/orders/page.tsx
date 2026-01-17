@@ -78,14 +78,14 @@ const ORDER_STATUSES = [
   { value: 'cancelled', label: 'Cancelled', color: 'bg-red-500' },
 ];
 
-// Order status colors
+// Order status colors (dark theme compatible)
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-  processing: 'bg-blue-100 text-blue-800 border-blue-300',
-  packed: 'bg-purple-100 text-purple-800 border-purple-300',
-  shipped: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-  delivered: 'bg-green-100 text-green-800 border-green-300',
-  cancelled: 'bg-red-100 text-red-800 border-red-300',
+  pending: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30',
+  processing: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
+  packed: 'bg-purple-500/20 text-purple-500 border-purple-500/30',
+  shipped: 'bg-indigo-500/20 text-indigo-500 border-indigo-500/30',
+  delivered: 'bg-green-500/20 text-green-500 border-green-500/30',
+  cancelled: 'bg-red-500/20 text-red-500 border-red-500/30',
 };
 
 // Format currency
@@ -357,8 +357,14 @@ export default function OrdersPage() {
       return;
     }
     
-    // Check if already in cart
-    const existingItem = items.find(i => i.productId === product.id);
+    // Determine if this is a variant
+    const isVariant = product.is_variant || product.variant_id;
+    const variantId = isVariant ? product.variant_id : undefined;
+    
+    // Check if already in cart (check both product and variant)
+    const existingItem = items.find(i => 
+      i.productId === product.id && i.variantId === variantId
+    );
     if (existingItem && existingItem.quantity >= product.quantity) {
       toast({
         title: 'Stock Limit Reached',
@@ -370,12 +376,12 @@ export default function OrdersPage() {
     
     const newItem: OrderItemData = {
       productId: product.id,
-      variantId: undefined,
-      productName: product.name,
+      variantId: variantId,
+      productName: isVariant ? product.name.split(' - ')[0] : product.name,
       productSku: product.sku,
       productBarcode: product.barcode,
-      variantName: undefined,
-      variantOptions: {},
+      variantName: isVariant ? product.variant_name : undefined,
+      variantOptions: isVariant ? product.variant_options : {},
       unitPrice: parseFloat(product.price) || 0,
       quantity: 1,
       discount: 0,
@@ -1356,7 +1362,26 @@ function ScanProductsStep({
   }, []);
 
   const handleSelectProduct = (product: any) => {
-    onAddProduct(product);
+    // Handle variant selection differently
+    if (product.is_variant) {
+      // For variants, we need to pass variant-specific data
+      const variantData = {
+        id: product.id,
+        variant_id: product.variant_id,
+        name: product.name,
+        sku: product.sku,
+        barcode: product.barcode,
+        price: product.price,
+        quantity: product.quantity,
+        primary_image: product.primary_image,
+        variant_name: product.variant_name,
+        variant_options: product.variant_options,
+        is_variant: true,
+      };
+      onAddProduct(variantData);
+    } else {
+      onAddProduct(product);
+    }
     setSearchQuery('');
     setSearchResults([]);
     setShowSearchResults(false);
@@ -1398,12 +1423,12 @@ function ScanProductsStep({
             
             {/* Search Results Dropdown */}
             {showSearchResults && searchResults.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-80 overflow-y-auto">
-                {searchResults.map((product: any) => (
+              <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-80 overflow-y-auto">
+                {searchResults.map((product: any, index: number) => (
                   <button
-                    key={product.id}
+                    key={`${product.id}-${product.variant_id || 'base'}-${index}`}
                     onClick={() => handleSelectProduct(product)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors border-b last:border-b-0 text-left"
+                    className="w-full flex items-center gap-3 p-3 hover:bg-secondary transition-colors border-b border-border last:border-b-0 text-left"
                   >
                     {product.primary_image ? (
                       <img 
@@ -1412,12 +1437,17 @@ function ScanProductsStep({
                         className="w-12 h-12 rounded object-cover" 
                       />
                     ) : (
-                      <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center">
-                        <Package className="w-6 h-6 text-gray-400" />
+                      <div className="w-12 h-12 rounded bg-secondary flex items-center justify-center">
+                        <Package className="w-6 h-6 text-muted-foreground" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{product.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{product.name}</p>
+                        {product.is_variant && (
+                          <span className="px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] font-medium rounded">Variant</span>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
                       <p className="text-xs text-muted-foreground">
                         Stock: {product.quantity || 0} available
@@ -1426,7 +1456,7 @@ function ScanProductsStep({
                     <div className="text-right">
                       <p className="font-semibold text-primary">{formatCurrency(product.price)}</p>
                       {product.quantity <= 0 && (
-                        <span className="inline-block px-2 py-0.5 bg-red-100 text-red-600 text-xs font-medium rounded">Out of Stock</span>
+                        <span className="inline-block px-2 py-0.5 bg-red-500/20 text-red-400 text-xs font-medium rounded">Out of Stock</span>
                       )}
                     </div>
                   </button>
@@ -1435,16 +1465,16 @@ function ScanProductsStep({
             )}
             
             {showSearchResults && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
-              <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg p-4 text-center text-muted-foreground">
+              <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg p-4 text-center text-muted-foreground">
                 No products found for "{searchQuery}"
               </div>
             )}
           </div>
 
           <div className="relative flex items-center">
-            <div className="flex-1 border-t border-gray-200" />
-            <span className="px-4 text-sm text-muted-foreground bg-white">or</span>
-            <div className="flex-1 border-t border-gray-200" />
+            <div className="flex-1 border-t border-border" />
+            <span className="px-4 text-sm text-muted-foreground bg-card">or</span>
+            <div className="flex-1 border-t border-border" />
           </div>
 
           {/* Scanner Input */}
@@ -1983,39 +2013,39 @@ function OrderDetailView({
                   Actions
                   <ChevronDown className="w-3 h-3" />
                 </Button>
-                <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-xl border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <div className="px-3 py-2 border-b bg-gray-50 rounded-t-lg">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Print</span>
+                <div className="absolute right-0 mt-1 w-56 bg-card border border-border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <div className="px-3 py-2 border-b border-border bg-secondary/50 rounded-t-lg">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Print</span>
                   </div>
                   <button
                     onClick={onPrintInvoice}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
                   >
-                    <Printer className="w-4 h-4 text-gray-500" />
+                    <Printer className="w-4 h-4 text-muted-foreground" />
                     <span>Print Invoice</span>
                   </button>
                   <button
                     onClick={onPrintLabel}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
                   >
-                    <Printer className="w-4 h-4 text-gray-500" />
+                    <Printer className="w-4 h-4 text-muted-foreground" />
                     <span>Print Label</span>
                   </button>
-                  <div className="px-3 py-2 border-t border-b bg-gray-50">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Download</span>
+                  <div className="px-3 py-2 border-t border-b border-border bg-secondary/50">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Download</span>
                   </div>
                   <button
                     onClick={onDownloadInvoice}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
                   >
-                    <Download className="w-4 h-4 text-gray-500" />
+                    <Download className="w-4 h-4 text-muted-foreground" />
                     <span>Download Invoice</span>
                   </button>
                   <button
                     onClick={onDownloadLabel}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-50 rounded-b-lg transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary rounded-b-lg transition-colors"
                   >
-                    <Download className="w-4 h-4 text-gray-500" />
+                    <Download className="w-4 h-4 text-muted-foreground" />
                     <span>Download Label</span>
                   </button>
                 </div>
@@ -2160,44 +2190,44 @@ function InvoicePreview({
               Actions
               <ChevronDown className="w-3 h-3" />
             </Button>
-            <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-xl border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-              <div className="px-3 py-2 border-b bg-gray-50 rounded-t-lg">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Print</span>
+            <div className="absolute right-0 mt-1 w-56 bg-card border border-border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              <div className="px-3 py-2 border-b border-border bg-secondary/50 rounded-t-lg">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Print</span>
               </div>
               <button
                 onClick={onPrintInvoice}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
               >
-                <Printer className="w-4 h-4 text-gray-500" />
+                <Printer className="w-4 h-4 text-muted-foreground" />
                 <span>Print Invoice</span>
               </button>
               <button
                 onClick={onPrintLabel}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
               >
-                <Printer className="w-4 h-4 text-gray-500" />
+                <Printer className="w-4 h-4 text-muted-foreground" />
                 <span>Print Label</span>
               </button>
-              <div className="px-3 py-2 border-t border-b bg-gray-50">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Download</span>
+              <div className="px-3 py-2 border-t border-b border-border bg-secondary/50">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Download</span>
               </div>
               <button
                 onClick={onDownloadInvoice}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
               >
-                <Download className="w-4 h-4 text-gray-500" />
+                <Download className="w-4 h-4 text-muted-foreground" />
                 <span>Download Invoice</span>
               </button>
               <button
                 onClick={onDownloadLabel}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-b-lg transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary rounded-b-lg transition-colors"
               >
-                <Download className="w-4 h-4 text-gray-500" />
+                <Download className="w-4 h-4 text-muted-foreground" />
                 <span>Download Label</span>
               </button>
             </div>
           </div>
-          <Button onClick={onNewOrder} className="bg-white text-green-600 hover:bg-green-50">
+          <Button onClick={onNewOrder} variant="secondary" className="border-white/20">
             <Plus className="w-4 h-4 mr-2" />
             New Order
           </Button>
@@ -2207,24 +2237,24 @@ function InvoicePreview({
       {/* Invoice Preview Card */}
       <Card className="overflow-hidden">
         {/* Invoice Header */}
-        <div className="bg-gradient-to-r from-blue-800 via-blue-600 to-blue-500 text-white p-8">
+        <div className="bg-gradient-to-r from-primary/90 via-primary to-primary/80 text-primary-foreground p-8">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-blue-800 font-bold text-2xl shadow-lg">
+              <div className="w-16 h-16 bg-background rounded-xl flex items-center justify-center text-primary font-bold text-2xl shadow-lg">
                 SP
               </div>
               <div>
                 <h2 className="text-2xl font-bold">{storeSettings.store_name || 'SP Customs'}</h2>
-                <p className="text-blue-100 text-sm">{storeSettings.store_address || 'Bangalore, Karnataka, India'}</p>
-                <p className="text-blue-100 text-sm">{storeSettings.store_phone || '+91 98765 43210'}</p>
+                <p className="opacity-80 text-sm">{storeSettings.store_address || 'Bangalore, Karnataka, India'}</p>
+                <p className="opacity-80 text-sm">{storeSettings.store_phone || '+91 98765 43210'}</p>
               </div>
             </div>
             <div className="text-right">
               <h3 className="text-3xl font-bold tracking-wider">INVOICE</h3>
-              <p className="bg-white/20 px-4 py-1 rounded-full text-sm mt-2 inline-block">
+              <p className="bg-background/20 px-4 py-1 rounded-full text-sm mt-2 inline-block">
                 {order.order_number}
               </p>
-              <p className="text-blue-100 text-sm mt-2">
+              <p className="opacity-80 text-sm mt-2">
                 {new Date(order.created_at).toLocaleDateString('en-IN', { 
                   day: '2-digit', 
                   month: 'short', 
@@ -2238,19 +2268,19 @@ function InvoicePreview({
         <CardContent className="p-8">
           {/* Bill To / Ship To */}
           <div className="grid md:grid-cols-2 gap-6 mb-8">
-            <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border-l-4 border-blue-500">
-              <h4 className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-3">📋 Bill To</h4>
+            <div className="bg-secondary/50 rounded-xl p-5 border-l-4 border-primary">
+              <h4 className="text-xs font-semibold text-primary uppercase tracking-wider mb-3">📋 Bill To</h4>
               <p className="font-semibold text-lg">{shipping.customer_name || 'N/A'}</p>
-              <p className="text-slate-600">📱 {shipping.phone || 'N/A'}</p>
-              {shipping.email && <p className="text-slate-600">✉️ {shipping.email}</p>}
+              <p className="text-muted-foreground">📱 {shipping.phone || 'N/A'}</p>
+              {shipping.email && <p className="text-muted-foreground">✉️ {shipping.email}</p>}
             </div>
-            <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5 border-l-4 border-blue-500">
-              <h4 className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-3">📦 Ship To</h4>
+            <div className="bg-secondary/50 rounded-xl p-5 border-l-4 border-primary">
+              <h4 className="text-xs font-semibold text-primary uppercase tracking-wider mb-3">📦 Ship To</h4>
               <p className="font-semibold text-lg">{shipping.customer_name || 'N/A'}</p>
-              <p className="text-slate-600">{shipping.address_line1 || ''}</p>
-              {shipping.address_line2 && <p className="text-slate-600">{shipping.address_line2}</p>}
-              <p className="text-slate-600">{shipping.city}, {shipping.state} - {shipping.postal_code}</p>
-              {shipping.landmark && <p className="text-slate-500 text-sm">📍 Near: {shipping.landmark}</p>}
+              <p className="text-muted-foreground">{shipping.address_line1 || ''}</p>
+              {shipping.address_line2 && <p className="text-muted-foreground">{shipping.address_line2}</p>}
+              <p className="text-muted-foreground">{shipping.city}, {shipping.state} - {shipping.postal_code}</p>
+              {shipping.landmark && <p className="text-muted-foreground/70 text-sm">📍 Near: {shipping.landmark}</p>}
             </div>
           </div>
           
@@ -2258,7 +2288,7 @@ function InvoicePreview({
           <div className="mb-8">
             <table className="w-full">
               <thead>
-                <tr className="bg-gradient-to-r from-blue-800 to-blue-600 text-white">
+                <tr className="bg-primary text-primary-foreground">
                   <th className="py-4 px-5 text-left rounded-l-xl text-sm font-semibold uppercase tracking-wider">Item</th>
                   <th className="py-4 px-5 text-center text-sm font-semibold uppercase tracking-wider">Qty</th>
                   <th className="py-4 px-5 text-right text-sm font-semibold uppercase tracking-wider">Price</th>
@@ -2267,15 +2297,15 @@ function InvoicePreview({
               </thead>
               <tbody>
                 {items.map((item: any, index: number) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                    <td className="py-4 px-5 border-b border-slate-100">
+                  <tr key={index} className={index % 2 === 0 ? '' : 'bg-secondary/30'}>
+                    <td className="py-4 px-5 border-b border-border">
                       <p className="font-semibold">{item.product_name}</p>
-                      {item.variant_name && <p className="text-sm text-slate-500">{item.variant_name}</p>}
-                      <p className="text-xs text-slate-400 font-mono">SKU: {item.product_sku}</p>
+                      {item.variant_name && <p className="text-sm text-muted-foreground">{item.variant_name}</p>}
+                      <p className="text-xs text-muted-foreground font-mono">SKU: {item.product_sku}</p>
                     </td>
-                    <td className="py-4 px-5 text-center border-b border-slate-100 font-medium">{item.quantity}</td>
-                    <td className="py-4 px-5 text-right border-b border-slate-100">{formatCurrency(parseFloat(item.unit_price))}</td>
-                    <td className="py-4 px-5 text-right border-b border-slate-100 font-semibold">{formatCurrency(parseFloat(item.total))}</td>
+                    <td className="py-4 px-5 text-center border-b border-border font-medium">{item.quantity}</td>
+                    <td className="py-4 px-5 text-right border-b border-border">{formatCurrency(parseFloat(item.unit_price))}</td>
+                    <td className="py-4 px-5 text-right border-b border-border font-semibold">{formatCurrency(parseFloat(item.total))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2284,55 +2314,55 @@ function InvoicePreview({
           
           {/* Totals */}
           <div className="flex justify-end">
-            <div className="w-80 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-5">
+            <div className="w-80 bg-secondary/50 rounded-xl p-5">
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Subtotal</span>
+                  <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-medium">{formatCurrency(parseFloat(order.subtotal))}</span>
                 </div>
                 {parseFloat(order.discount_amount) > 0 && (
-                  <div className="flex justify-between text-green-600">
+                  <div className="flex justify-between text-green-500">
                     <span>Discount</span>
                     <span>-{formatCurrency(parseFloat(order.discount_amount))}</span>
                   </div>
                 )}
                 {parseFloat(order.shipping_cost) > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-slate-600">Shipping</span>
+                    <span className="text-muted-foreground">Shipping</span>
                     <span>{formatCurrency(parseFloat(order.shipping_cost))}</span>
                   </div>
                 )}
                 {parseFloat(order.tax_amount) > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-slate-600">Tax</span>
+                    <span className="text-muted-foreground">Tax</span>
                     <span>{formatCurrency(parseFloat(order.tax_amount))}</span>
                   </div>
                 )}
-                <div className="flex justify-between pt-3 border-t-2 border-blue-500">
-                  <span className="text-lg font-bold text-blue-800">Grand Total</span>
-                  <span className="text-xl font-bold text-blue-800">{formatCurrency(parseFloat(order.total))}</span>
+                <div className="flex justify-between pt-3 border-t-2 border-primary">
+                  <span className="text-lg font-bold text-primary">Grand Total</span>
+                  <span className="text-xl font-bold text-primary">{formatCurrency(parseFloat(order.total))}</span>
                 </div>
               </div>
             </div>
           </div>
           
           {/* Payment Info */}
-          <div className="mt-6 flex gap-4">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
+          <div className="mt-6 flex flex-wrap gap-4">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-medium">
               💳 Payment: {PAYMENT_METHODS.find(m => m.value === order.payment_info?.method)?.label || 'Cash on Delivery'}
             </div>
             <div className={cn(
-              "inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium",
-              STATUS_COLORS[order.status] || 'bg-yellow-100 text-yellow-800'
+              "inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border",
+              STATUS_COLORS[order.status] || 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30'
             )}>
               📋 Status: {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
             </div>
           </div>
           
           {/* Footer */}
-          <div className="mt-8 pt-6 border-t text-center">
-            <p className="text-lg font-semibold text-blue-600">🙏 Thank you for your business!</p>
-            <p className="text-slate-500 text-sm mt-2">
+          <div className="mt-8 pt-6 border-t border-border text-center">
+            <p className="text-lg font-semibold text-primary">🙏 Thank you for your business!</p>
+            <p className="text-muted-foreground text-sm mt-2">
               For any queries, contact us at {storeSettings.store_phone || '+91 98765 43210'} | {storeSettings.store_email || 'contact@spcustoms.com'}
             </p>
           </div>

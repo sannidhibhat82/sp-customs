@@ -147,8 +147,10 @@ class ApiClient {
     return response.data;
   }
 
-  async searchProducts(q: string, limit?: number) {
-    const response = await this.client.get('/products/search', { params: { q, limit } });
+  async searchProducts(q: string, limit?: number, includeVariants: boolean = true) {
+    const response = await this.client.get('/products/search', { 
+      params: { q, limit, include_variants: includeVariants } 
+    });
     return response.data;
   }
 
@@ -233,6 +235,11 @@ class ApiClient {
 
   async getInventoryLogs(productId: number, limit?: number) {
     const response = await this.client.get(`/inventory/${productId}/logs`, { params: { limit } });
+    return response.data;
+  }
+
+  async getVariantInventoryLogs(variantId: number, limit?: number) {
+    const response = await this.client.get(`/inventory/variant/${variantId}/logs`, { params: { limit } });
     return response.data;
   }
 

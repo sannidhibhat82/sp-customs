@@ -86,6 +86,17 @@ async def get_category_tree(
     result = await db.execute(query)
     categories = result.scalars().all()
     
+    # Get product counts for all categories in a single query
+    product_counts = {}
+    for cat in categories:
+        count_result = await db.execute(
+            select(func.count(Product.id)).where(
+                Product.category_id == cat.id,
+                Product.is_active == True
+            )
+        )
+        product_counts[cat.id] = count_result.scalar() or 0
+    
     # Build tree structure manually to avoid async attribute issues
     category_map = {}
     for cat in categories:
@@ -102,7 +113,7 @@ async def get_category_tree(
             "sort_order": cat.sort_order,
             "is_active": cat.is_active,
             "is_featured": cat.is_featured,
-            "product_count": 0,
+            "product_count": product_counts.get(cat.id, 0),
             "created_at": cat.created_at,
             "updated_at": cat.updated_at,
             "children": []
@@ -114,6 +125,17 @@ async def get_category_tree(
             category_map[cat.parent_id]["children"].append(category_map[cat.id])
         else:
             root_categories.append(category_map[cat.id])
+    
+    # Calculate total product count including children for parent categories
+    def calculate_total_count(cat_data):
+        total = cat_data["product_count"]
+        for child in cat_data["children"]:
+            total += calculate_total_count(child)
+        cat_data["product_count"] = total
+        return total
+    
+    for cat in root_categories:
+        calculate_total_count(cat)
     
     return [CategoryTree(**cat) for cat in root_categories]
 

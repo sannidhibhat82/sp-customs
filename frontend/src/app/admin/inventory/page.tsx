@@ -50,9 +50,11 @@ export default function InventoryPage() {
     product: null,
     isVariant: false,
   });
-  const [historyDialog, setHistoryDialog] = useState<{ open: boolean; productId: number | null }>({
+  const [historyDialog, setHistoryDialog] = useState<{ open: boolean; productId: number | null; isVariant: boolean; variantId: number | null }>({
     open: false,
     productId: null,
+    isVariant: false,
+    variantId: null,
   });
   const [newQuantity, setNewQuantity] = useState('');
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
@@ -79,11 +81,13 @@ export default function InventoryPage() {
     queryFn: () => api.getInventoryStats(),
   });
 
-  // Fetch logs for history
+  // Fetch logs for history (product or variant)
   const { data: logs } = useQuery({
-    queryKey: ['inventory-logs', historyDialog.productId],
-    queryFn: () => api.getInventoryLogs(historyDialog.productId!, 20),
-    enabled: !!historyDialog.productId,
+    queryKey: ['inventory-logs', historyDialog.productId, historyDialog.isVariant, historyDialog.variantId],
+    queryFn: () => historyDialog.isVariant && historyDialog.variantId
+      ? api.getVariantInventoryLogs(historyDialog.variantId, 20)
+      : api.getInventoryLogs(historyDialog.productId!, 20),
+    enabled: historyDialog.isVariant ? !!historyDialog.variantId : !!historyDialog.productId,
   });
 
   // Pre-fetch variant info for visible products
@@ -464,7 +468,7 @@ export default function InventoryPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => setHistoryDialog({ open: true, productId: product.id })}
+                              onClick={() => setHistoryDialog({ open: true, productId: product.id, isVariant: false, variantId: null })}
                             >
                               <History className="w-4 h-4" />
                             </Button>
@@ -530,16 +534,27 @@ export default function InventoryPage() {
                                 )}
                               </td>
                               <td>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setEditDialog({ open: true, product: variant, isVariant: true });
-                                    setNewQuantity(String(variant.inventory_quantity));
-                                  }}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditDialog({ open: true, product: variant, isVariant: true });
+                                      setNewQuantity(String(variant.inventory_quantity));
+                                    }}
+                                    title="Update Variant Quantity"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setHistoryDialog({ open: true, productId: null, isVariant: true, variantId: variant.id })}
+                                    title="Inventory History"
+                                  >
+                                    <History className="w-4 h-4" />
+                                  </Button>
+                                </div>
                               </td>
                             </motion.tr>
                           ))
@@ -639,7 +654,7 @@ export default function InventoryPage() {
       </Dialog>
 
       {/* History Dialog */}
-      <Dialog open={historyDialog.open} onOpenChange={(open) => setHistoryDialog({ open, productId: null })}>
+      <Dialog open={historyDialog.open} onOpenChange={(open) => setHistoryDialog({ open, productId: null, isVariant: false, variantId: null })}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Inventory History</DialogTitle>

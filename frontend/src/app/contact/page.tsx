@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Phone,
@@ -17,9 +17,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Header, Footer } from '@/components/public';
 import { toast } from '@/components/ui/use-toast';
-import { WHATSAPP_NUMBER, PHONE_DISPLAY, getPhoneUrl, getWhatsAppUrl } from '@/lib/utils';
+import { useStoreSettingsStore } from '@/lib/store';
 
 export default function ContactPage() {
+  const { storeSettings } = useStoreSettingsStore();
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -27,6 +28,17 @@ export default function ContactPage() {
     message: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Extract WhatsApp number from store_phone (remove spaces, dashes, and country code formatting)
+  const getWhatsAppNumber = () => {
+    const phone = storeSettings.store_phone || '+91 98765 43210';
+    // Remove all non-digit characters except leading +
+    return phone.replace(/[^\d]/g, '');
+  };
+
+  const getPhoneDisplay = () => {
+    return storeSettings.store_phone || '+91 98765 43210';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +58,7 @@ ${form.message}
 
     // Open WhatsApp
     window.open(
-      `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
+      `https://wa.me/${getWhatsAppNumber()}?text=${encodeURIComponent(message)}`,
       '_blank'
     );
 
@@ -97,7 +109,7 @@ ${form.message}
             <div className="space-y-6">
               {/* Phone */}
               <a
-                href={getPhoneUrl()}
+                href={`tel:+${getWhatsAppNumber()}`}
                 className="flex items-start gap-4 p-4 bg-card rounded-xl border border-border hover:border-primary transition-colors group"
               >
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
@@ -105,14 +117,14 @@ ${form.message}
                 </div>
                 <div>
                   <h3 className="font-semibold mb-1">Phone</h3>
-                  <p className="text-muted-foreground">{PHONE_DISPLAY}</p>
+                  <p className="text-muted-foreground">{getPhoneDisplay()}</p>
                   <p className="text-xs text-primary mt-1">Click to call</p>
                 </div>
               </a>
 
               {/* WhatsApp */}
               <a
-                href={getWhatsAppUrl("Hi! I have a question about your products.")}
+                href={`https://wa.me/${getWhatsAppNumber()}?text=${encodeURIComponent("Hi! I have a question about your products.")}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-start gap-4 p-4 bg-card rounded-xl border border-border hover:border-green-500 transition-colors group"
@@ -122,7 +134,7 @@ ${form.message}
                 </div>
                 <div>
                   <h3 className="font-semibold mb-1">WhatsApp</h3>
-                  <p className="text-muted-foreground">{PHONE_DISPLAY}</p>
+                  <p className="text-muted-foreground">{getPhoneDisplay()}</p>
                   <p className="text-xs text-green-500 mt-1">Fastest response</p>
                 </div>
               </a>

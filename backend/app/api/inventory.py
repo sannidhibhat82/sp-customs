@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.product import Product
 from app.models.inventory import Inventory, InventoryLog
-from app.models.variant import ProductVariant, VariantInventory
+from app.models.variant import ProductVariant, VariantInventory, VariantInventoryLog
 from app.schemas.inventory import (
     InventoryUpdate, InventoryResponse, InventoryScanRequest, 
     InventoryScanResponse, InventoryLogResponse,
@@ -339,8 +339,23 @@ async def scan_inventory(
     if hasattr(inventory, 'last_scanned_at'):
         inventory.last_scanned_at = datetime.utcnow()
     
-    # Create log entry (only for product inventory, not variant)
-    if not variant and hasattr(inventory, 'id'):
+    # Create log entry
+    if variant:
+        # Create variant inventory log
+        variant_log = VariantInventoryLog(
+            variant_inventory_id=inventory.id,
+            action=data.action,
+            quantity_change=change,
+            quantity_before=previous_qty,
+            quantity_after=inventory.quantity,
+            reason=data.reason,
+            device_type=data.device_type,
+            device_info=data.device_info,
+            user_id=current_user.id if current_user else None,
+        )
+        db.add(variant_log)
+    elif hasattr(inventory, 'id'):
+        # Create product inventory log
         log = InventoryLog(
             inventory_id=inventory.id,
             action=data.action,
@@ -448,4 +463,50 @@ async def get_inventory_logs(
     logs = logs_result.scalars().all()
     
     return [InventoryLogResponse.model_validate(log) for log in logs]
+
+
+@router.get("/variant/{variant_id}/logs", response_model=List[InventoryLogResponse])
+async def get_variant_inventory_logs(
+    variant_id: int,
+    limit: int = Query(50, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Get inventory change history for a variant."""
+    # Get variant inventory
+    result = await db.execute(
+        select(VariantInventory).where(VariantInventory.variant_id == variant_id)
+    )
+    variant_inventory = result.scalar_one_or_none()
+    
+    if not variant_inventory:
+        return []
+    
+    # Get logs
+    logs_result = await db.execute(
+        select(VariantInventoryLog)
+        .where(VariantInventoryLog.variant_inventory_id == variant_inventory.id)
+        .order_by(VariantInventoryLog.created_at.desc())
+        .limit(limit)
+    )
+    logs = logs_result.scalars().all()
+    
+    # Map to response format (same as InventoryLogResponse)
+    return [
+        {
+            "id": log.id,
+            "uuid": log.uuid,
+            "action": log.action,
+            "quantity_change": log.quantity_change,
+            "quantity_before": log.quantity_before,
+            "quantity_after": log.quantity_after,
+            "reason": log.reason,
+            "reference": log.reference,
+            "device_type": log.device_type,
+            "device_info": log.device_info,
+            "user_id": log.user_id,
+            "created_at": log.created_at,
+        }
+        for log in logs
+    ]
 

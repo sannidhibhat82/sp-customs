@@ -242,9 +242,7 @@ export interface OrderItemData {
   discount: number;
   productImage?: string;
   availableQuantity: number;
-}
-
-// Shipping Info
+}// Shipping Info
 export interface ShippingInfoData {
   customer_name: string;
   email: string;

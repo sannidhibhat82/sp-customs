@@ -137,6 +137,46 @@ class VariantInventory(Base):
         return f"<VariantInventory variant_id={self.variant_id} qty={self.quantity}>"
 
 
+class VariantInventoryLog(Base):
+    """
+    Audit log for all variant inventory changes.
+    Tracks scans, adjustments, and all movements for variants.
+    """
+    __tablename__ = "variant_inventory_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, default=lambda: str(uuid_lib.uuid4()), index=True)
+    
+    variant_inventory_id = Column(Integer, ForeignKey("variant_inventory.id", ondelete="CASCADE"), nullable=False)
+    
+    # Change details
+    action = Column(String(50), nullable=False)  # scan_in, scan_out, adjustment, initial
+    quantity_change = Column(Integer, nullable=False)  # Positive or negative
+    quantity_before = Column(Integer, nullable=False)
+    quantity_after = Column(Integer, nullable=False)
+    
+    # Context
+    reason = Column(Text, nullable=True)
+    reference = Column(String(255), nullable=True)  # Order ID, scan session ID, etc.
+    
+    # Device info
+    device_type = Column(String(50), nullable=True)  # mobile, desktop
+    device_info = Column(String(500), nullable=True)
+    
+    # User who made the change
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    
+    # Metadata
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    variant_inventory = relationship("VariantInventory", backref="logs")
+    user = relationship("User", foreign_keys=[user_id])
+    
+    def __repr__(self):
+        return f"<VariantInventoryLog id={self.id} action={self.action} change={self.quantity_change}>"
+
+
 class VariantOption(Base):
     """
     Defines available variant options for products (e.g., Color, Size).

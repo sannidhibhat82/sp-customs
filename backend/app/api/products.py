@@ -171,12 +171,17 @@ async def list_products(
 async def search_products(
     q: str = Query(..., min_length=1),
     limit: int = Query(10, le=50),
+    include_variants: bool = Query(True, description="Include product variants in search"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Quick search for products (autocomplete)."""
-    search_term = f"%{q}%"
+    """Quick search for products and variants (autocomplete)."""
+    from app.models.variant import ProductVariant, VariantInventory, VariantImage
     
-    result = await db.execute(
+    search_term = f"%{q}%"
+    results = []
+    
+    # Search products
+    product_result = await db.execute(
         select(Product)
         .options(selectinload(Product.images), selectinload(Product.inventory))
         .where(
@@ -189,10 +194,10 @@ async def search_products(
         )
         .limit(limit)
     )
-    products = result.scalars().all()
+    products = product_result.scalars().all()
     
-    return [
-        {
+    for p in products:
+        results.append({
             "id": p.id,
             "uuid": p.uuid,
             "name": p.name,
@@ -201,9 +206,67 @@ async def search_products(
             "price": float(p.price) if p.price else 0,
             "quantity": p.inventory.available_quantity if p.inventory else 0,
             "primary_image": p.primary_image,
-        }
-        for p in products
-    ]
+            "is_variant": False,
+        })
+    
+    # Search variants if enabled
+    if include_variants and len(results) < limit:
+        variant_limit = limit - len(results)
+        # Join with Product to also search by parent product name
+        variant_result = await db.execute(
+            select(ProductVariant)
+            .join(Product, ProductVariant.product_id == Product.id)
+            .options(
+                selectinload(ProductVariant.product).selectinload(Product.images),
+                selectinload(ProductVariant.inventory),
+                selectinload(ProductVariant.images)
+            )
+            .where(
+                ProductVariant.is_active == True,
+                Product.is_active == True,
+                or_(
+                    # Search by variant fields
+                    ProductVariant.name.ilike(search_term),
+                    ProductVariant.sku.ilike(search_term),
+                    ProductVariant.barcode.ilike(search_term),
+                    # Also search by parent product name
+                    Product.name.ilike(search_term),
+                )
+            )
+            .limit(variant_limit)
+        )
+        variants = variant_result.scalars().all()
+        
+        for v in variants:
+            # Get variant image or fall back to product image
+            variant_image = None
+            if v.images and len(v.images) > 0:
+                variant_image = v.images[0].image_data
+            elif v.product and v.product.primary_image:
+                variant_image = v.product.primary_image
+            
+            # Get variant inventory
+            qty = v.inventory.available_quantity if v.inventory else 0
+            
+            # Get price (variant price or fall back to product price)
+            price = float(v.price) if v.price else (float(v.product.price) if v.product and v.product.price else 0)
+            
+            results.append({
+                "id": v.product_id,
+                "uuid": v.uuid,
+                "name": f"{v.product.name if v.product else ''} - {v.name}",
+                "sku": v.sku or (v.product.sku if v.product else ''),
+                "barcode": v.barcode,
+                "price": price,
+                "quantity": qty,
+                "primary_image": variant_image,
+                "is_variant": True,
+                "variant_id": v.id,
+                "variant_name": v.name,
+                "variant_options": v.options,
+            })
+    
+    return results
 
 
 @router.get("/by-barcode/{barcode}")
