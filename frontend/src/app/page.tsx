@@ -613,7 +613,7 @@ export default function HomePage() {
         <Header />
 
         {/* Hero Section */}
-        <section ref={heroRef} className="relative min-h-screen flex items-center pt-20 overflow-hidden">
+        <section ref={heroRef} className="relative min-h-[calc(100vh-64px)] flex items-center pt-4 sm:pt-8 lg:pt-12 overflow-hidden">
           {/* Background */}
           <div className="absolute inset-0">
             <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5" />
@@ -623,7 +623,7 @@ export default function HomePage() {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,107,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,107,0,0.02)_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
           </div>
           
-          <motion.div style={{ y, opacity }} className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <motion.div style={{ y, opacity }} className="relative container-wide py-6 sm:py-12">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               {/* Text Content */}
               <div>
@@ -711,8 +711,8 @@ export default function HomePage() {
 
         {/* Promo Banners */}
         {banners.length > 0 && (
-          <section className="py-8">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <section className="py-6 sm:py-8">
+            <div className="container-wide">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl">
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -768,8 +768,8 @@ export default function HomePage() {
         )}
 
         {/* Features */}
-        <section className="py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="py-10 sm:py-16">
+          <div className="container-wide">
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { icon: Shield, title: 'Genuine Products', desc: 'Authorized dealer' },
@@ -785,8 +785,8 @@ export default function HomePage() {
 
         {/* Categories */}
         {categories && categories.length > 0 && (
-          <section className="py-20">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <section className="py-12 sm:py-20">
+            <div className="container-wide">
               <div className="flex items-end justify-between mb-12">
                 <SectionTitle 
                   tag="Categories" 
@@ -878,11 +878,11 @@ export default function HomePage() {
 
         {/* Featured Products */}
         {products.length > 0 && (
-          <section className="py-20 bg-gradient-to-b from-secondary/30 to-background relative overflow-hidden">
+          <section className="py-12 sm:py-20 bg-gradient-to-b from-secondary/30 to-background relative overflow-hidden">
             {/* Background decoration */}
             <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[100px]" />
             
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+            <div className="container-wide relative">
               <div className="flex items-end justify-between mb-12">
                 <SectionTitle 
                   tag="Bestsellers" 
@@ -916,8 +916,8 @@ export default function HomePage() {
 
         {/* Deal of the Day */}
         {dealOfTheDay && (
-          <section className="py-20">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <section className="py-12 sm:py-20">
+            <div className="container-wide">
               <motion.div 
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -999,11 +999,11 @@ export default function HomePage() {
         )}
 
         {/* Stats */}
-        <section className="py-20 relative overflow-hidden">
+        <section className="py-12 sm:py-20 relative overflow-hidden">
           {/* Background */}
           <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-primary/5" />
           
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="container-wide relative">
             <div className="text-center mb-12">
               <SectionTitle 
                 tag="Our Impact" 
@@ -1041,8 +1041,8 @@ export default function HomePage() {
 
         {/* Instagram Reels */}
         {reels.length > 0 && (
-          <section className="py-20 bg-gradient-to-b from-background to-secondary/20">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <section className="py-12 sm:py-20 bg-gradient-to-b from-background to-secondary/20">
+            <div className="container-wide">
               <div className="text-center mb-12">
                 <SectionTitle 
                   tag="@sp_customs_" 
@@ -1128,10 +1128,10 @@ export default function HomePage() {
 
         {/* Testimonials */}
         {testimonials.length > 0 && (
-          <section className="py-20 relative overflow-hidden">
+          <section className="py-12 sm:py-20 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
             
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+            <div className="container-wide relative">
               <div className="text-center mb-12">
                 <SectionTitle tag="Reviews" title="What Customers Say" center />
               </div>
@@ -1204,8 +1204,8 @@ export default function HomePage() {
 
         {/* Brands */}
         {brands && brands.length > 0 && (
-          <section className="py-20 border-y border-border/50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <section className="py-12 sm:py-20 border-y border-border/50">
+            <div className="container-wide">
               <p className="text-center text-base text-muted-foreground font-medium mb-12 uppercase tracking-wider">
                 Trusted by Leading Brands
               </p>
@@ -1243,8 +1243,8 @@ export default function HomePage() {
         )}
 
         {/* Newsletter */}
-        <section className="py-20">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="py-12 sm:py-20">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
             <motion.div 
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1280,12 +1280,12 @@ export default function HomePage() {
         </section>
 
         {/* CTA */}
-        <section className="py-20 relative overflow-hidden">
+        <section className="py-12 sm:py-20 relative overflow-hidden">
           {/* Background */}
           <div className="absolute inset-0 bg-primary" />
           <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.1)_1px,transparent_1px)] bg-[size:40px_40px]" />
           
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 text-center relative">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}

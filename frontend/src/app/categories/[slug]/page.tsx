@@ -145,7 +145,7 @@ export default function CategoryPage() {
 
       {/* Hero Section */}
       <section className="pt-24 pb-12 bg-gradient-to-b from-primary/10 to-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container-wide">
           <Link href="/categories" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary mb-6">
             <ArrowLeft className="w-4 h-4" />
             Back to Categories
@@ -174,7 +174,7 @@ export default function CategoryPage() {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="container-wide py-8">
         {/* Filters Bar */}
         <div className="flex items-center justify-between mb-8">
           <p className="text-muted-foreground">

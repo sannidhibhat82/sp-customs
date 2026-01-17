@@ -336,7 +336,7 @@ function ProductsPageContent() {
 
       {/* Hero Banner */}
       <section className="pt-24 pb-12 bg-gradient-to-b from-primary/10 to-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container-wide">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -352,7 +352,7 @@ function ProductsPageContent() {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="container-wide py-8">
         {/* Search and Filters Bar */}
         <div className="flex flex-col lg:flex-row gap-4 mb-8">
           {/* Search */}

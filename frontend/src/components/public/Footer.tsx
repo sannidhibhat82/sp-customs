@@ -46,7 +46,7 @@ export default function Footer() {
         <div className="absolute -bottom-40 right-1/4 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative container-wide">
         {/* Newsletter Section */}
         <div className="py-12 border-b border-border">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-6">

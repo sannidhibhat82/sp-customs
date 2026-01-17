@@ -228,7 +228,7 @@ Can you provide more details about this product?`
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="pt-24 pb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="pt-24 pb-12 container-wide">
           <div className="animate-pulse grid lg:grid-cols-2 gap-12">
             <div className="aspect-square bg-secondary/50 rounded-2xl" />
             <div className="space-y-6">
@@ -249,7 +249,7 @@ Can you provide more details about this product?`
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="pt-24 pb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div className="pt-24 pb-12 container-wide text-center">
           <div className="py-20">
             <h1 className="text-2xl font-bold mb-4">Product Not Found</h1>
             <p className="text-muted-foreground mb-6">
@@ -274,7 +274,7 @@ Can you provide more details about this product?`
 
       {/* Breadcrumb */}
       <div className="pt-24 bg-secondary/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="container-wide py-4">
           <nav className="flex items-center gap-2 text-sm text-muted-foreground">
             <Link href="/" className="hover:text-foreground">Home</Link>
             <ChevronRight className="w-4 h-4" />
@@ -296,7 +296,7 @@ Can you provide more details about this product?`
       </div>
 
       {/* Product Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="container-wide py-12">
         <div className="grid lg:grid-cols-2 gap-12">
           {/* Image Gallery */}
           <div className="space-y-4">

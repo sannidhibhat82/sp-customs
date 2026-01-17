@@ -43,7 +43,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   if (isLoading || !fullProduct) {
     return (
       <div className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="container-wide py-8">
           <div className="animate-pulse">
             <div className="h-8 bg-secondary rounded w-32 mb-8" />
             <div className="grid lg:grid-cols-2 gap-8">
@@ -91,7 +91,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container-wide">
           <div className="flex items-center justify-between h-16">
             <Link href="/catalog" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
               <ChevronLeft className="w-5 h-5" />
@@ -113,7 +113,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="container-wide py-8">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Image Gallery */}
           <div className="space-y-4">

@@ -30,7 +30,7 @@ export default function ReturnsPage() {
 
       {/* Hero Section */}
       <section className="pt-24 pb-12 bg-gradient-to-b from-primary/10 to-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container-wide">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -63,7 +63,7 @@ export default function ReturnsPage() {
 
       {/* What Can/Cannot Be Returned */}
       <section className="py-16 bg-secondary/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="container-wide">
           <div className="grid md:grid-cols-2 gap-8">
             <motion.div
               initial={{ opacity: 0, x: -20 }}

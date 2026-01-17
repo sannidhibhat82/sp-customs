@@ -83,6 +83,16 @@
 }
 
 @layer components {
+  /* Wide container for consistent layout across all pages */
+  .container-wide {
+    @apply w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12;
+  }
+
+  /* Section container with consistent spacing */
+  .section-wide {
+    @apply w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-8 sm:py-12 lg:py-16;
+  }
+
   /* Glass effect - adapts to theme */
   .glass {
     @apply bg-card/80 backdrop-blur-xl border border-border/50;
