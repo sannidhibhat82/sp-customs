@@ -8,7 +8,7 @@ from sqlalchemy import select, update, func
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models.variant import ProductVariant, VariantImage, VariantInventory, VariantOption
+from app.models.variant import ProductVariant, VariantImage, VariantInventory, VariantInventoryLog, VariantOption
 from app.models.product import Product
 from app.schemas.variant import (
     VariantCreate, VariantUpdate, VariantResponse, VariantListResponse,
@@ -550,6 +550,7 @@ async def update_variant_inventory(
     variant_id: int,
     quantity: int = Query(..., ge=0),
     adjustment_type: str = Query("set", regex="^(set|add|remove)$"),
+    reason: Optional[str] = Query(None, description="Reason for adjustment"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user)
 ):
@@ -562,12 +563,31 @@ async def update_variant_inventory(
     if not inventory:
         raise HTTPException(status_code=404, detail="Variant inventory not found")
     
+    # Store old quantity for logging
+    old_quantity = inventory.quantity
+    
     if adjustment_type == "set":
         inventory.quantity = quantity
     elif adjustment_type == "add":
         inventory.quantity += quantity
     elif adjustment_type == "remove":
         inventory.quantity = max(0, inventory.quantity - quantity)
+    
+    new_quantity = inventory.quantity
+    quantity_change = new_quantity - old_quantity
+    
+    # Create inventory log entry if quantity changed
+    if quantity_change != 0:
+        log = VariantInventoryLog(
+            variant_inventory_id=inventory.id,
+            action=adjustment_type,
+            quantity_change=quantity_change,
+            quantity_before=old_quantity,
+            quantity_after=new_quantity,
+            reason=reason or f"Manual {adjustment_type} adjustment",
+            user_id=current_user.id,
+        )
+        db.add(log)
     
     await db.commit()
     await db.refresh(inventory)

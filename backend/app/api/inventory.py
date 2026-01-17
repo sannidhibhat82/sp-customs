@@ -71,40 +71,62 @@ async def get_inventory_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user)
 ):
-    """Get inventory statistics."""
+    """Get inventory statistics including both product and variant inventory."""
     # Total products
     total_result = await db.execute(select(func.count(Product.id)))
     total_products = total_result.scalar() or 0
     
-    # In stock
-    in_stock_result = await db.execute(
+    # Product inventory stats
+    product_in_stock_result = await db.execute(
         select(func.count(Inventory.id)).where(Inventory.quantity > 0)
     )
-    in_stock = in_stock_result.scalar() or 0
+    product_in_stock = product_in_stock_result.scalar() or 0
     
-    # Out of stock
-    out_of_stock_result = await db.execute(
+    product_out_of_stock_result = await db.execute(
         select(func.count(Inventory.id)).where(Inventory.quantity == 0)
     )
-    out_of_stock = out_of_stock_result.scalar() or 0
+    product_out_of_stock = product_out_of_stock_result.scalar() or 0
     
-    # Low stock
-    low_stock_result = await db.execute(
+    product_low_stock_result = await db.execute(
         select(func.count(Inventory.id)).where(
             Inventory.quantity > 0,
             Inventory.quantity <= Inventory.low_stock_threshold
         )
     )
-    low_stock = low_stock_result.scalar() or 0
+    product_low_stock = product_low_stock_result.scalar() or 0
     
-    # Total inventory value (if cost prices available)
-    # This is a simplified calculation
+    # Variant inventory stats
+    total_variants_result = await db.execute(select(func.count(VariantInventory.id)))
+    total_variants = total_variants_result.scalar() or 0
+    
+    variant_in_stock_result = await db.execute(
+        select(func.count(VariantInventory.id)).where(VariantInventory.quantity > 0)
+    )
+    variant_in_stock = variant_in_stock_result.scalar() or 0
+    
+    variant_out_of_stock_result = await db.execute(
+        select(func.count(VariantInventory.id)).where(VariantInventory.quantity == 0)
+    )
+    variant_out_of_stock = variant_out_of_stock_result.scalar() or 0
+    
+    variant_low_stock_result = await db.execute(
+        select(func.count(VariantInventory.id)).where(
+            VariantInventory.quantity > 0,
+            VariantInventory.quantity <= VariantInventory.low_stock_threshold
+        )
+    )
+    variant_low_stock = variant_low_stock_result.scalar() or 0
     
     return {
         "total_products": total_products,
-        "in_stock": in_stock,
-        "out_of_stock": out_of_stock,
-        "low_stock": low_stock,
+        "in_stock": product_in_stock,
+        "out_of_stock": product_out_of_stock,
+        "low_stock": product_low_stock,
+        # Variant stats
+        "total_variants": total_variants,
+        "variant_in_stock": variant_in_stock,
+        "variant_out_of_stock": variant_out_of_stock,
+        "variant_low_stock": variant_low_stock,
     }
 
 
