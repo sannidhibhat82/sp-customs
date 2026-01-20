@@ -50,6 +50,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setIsHydrated(true);
   }, []);
 
+  // Add noindex meta tag to prevent search engines from indexing admin pages
+  useEffect(() => {
+    // Check if meta tag already exists
+    let robotsMeta = document.querySelector('meta[name="robots"]') as HTMLMetaElement;
+    if (!robotsMeta) {
+      robotsMeta = document.createElement('meta');
+      robotsMeta.name = 'robots';
+      document.head.appendChild(robotsMeta);
+    }
+    robotsMeta.content = 'noindex, nofollow';
+    
+    // Cleanup on unmount (restore default)
+    return () => {
+      if (robotsMeta) {
+        robotsMeta.content = 'index, follow';
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
     checkMobile();

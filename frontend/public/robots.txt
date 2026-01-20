@@ -1,0 +1,10 @@
+# Allow all crawlers for public pages
+User-agent: *
+Allow: /
+
+# Block admin section from all search engines
+Disallow: /admin
+Disallow: /admin/
+
+# Sitemap location
+Sitemap: https://spcustoms.in/sitemap.xml
