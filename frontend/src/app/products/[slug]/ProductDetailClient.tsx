@@ -523,7 +523,7 @@ Can you provide more details about this product?`
                 "w-2 h-2 rounded-full",
                 isInStock ? "bg-green-500" : "bg-red-500"
               )} />
-              {isInStock ? `In Stock (${stockQuantity} available)` : 'Out of Stock'}
+              {isInStock ? 'In Stock' : 'Out of Stock'}
             </div>
 
             {/* CTA Buttons */}

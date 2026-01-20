@@ -135,10 +135,10 @@ function LoadingScreen({ onComplete }: { onComplete: () => void }) {
           {/* Glow effect */}
           <div className="absolute inset-0 bg-primary/30 blur-3xl scale-150" />
           
-          {/* Same SVG logo as header */}
+          {/* Same SVG logo as header - Black/White based on theme */}
           <motion.svg 
             viewBox="0 0 1696 608" 
-            className="relative h-16 sm:h-24 w-auto text-primary"
+            className="relative h-16 sm:h-24 w-auto text-foreground"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6 }}

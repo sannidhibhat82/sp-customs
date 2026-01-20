@@ -23,6 +23,9 @@ import {
   Loader2,
   Printer,
   Barcode,
+  Tag,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -53,9 +56,12 @@ export default function ProductDetailPage() {
     is_active: true,
     is_featured: false,
     is_new: true,
+    visibility: 'visible',
   });
   const [attributes, setAttributes] = useState<{ key: string; value: string }[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState('');
   const [newFeature, setNewFeature] = useState('');
   const [showMobileQR, setShowMobileQR] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -106,6 +112,7 @@ export default function ProductDetailPage() {
         is_active: product.is_active ?? true,
         is_featured: product.is_featured ?? false,
         is_new: product.is_new ?? true,
+        visibility: product.visibility || 'visible',
       });
       
       if (product.attributes) {
@@ -118,6 +125,10 @@ export default function ProductDetailPage() {
       
       if (product.features) {
         setFeatures(product.features);
+      }
+      
+      if (product.tags) {
+        setTags(product.tags);
       }
     }
   }, [product]);
@@ -213,8 +224,10 @@ export default function ProductDetailPage() {
       is_active: formData.is_active,
       is_featured: formData.is_featured,
       is_new: formData.is_new,
+      visibility: formData.visibility,
       attributes: attributesObj,
       features: features,
+      tags: tags,
     });
   };
 
@@ -233,6 +246,14 @@ export default function ProductDetailPage() {
     }
   };
   const removeFeature = (index: number) => setFeatures(features.filter((_, i) => i !== index));
+
+  const addTag = () => {
+    if (newTag.trim() && !tags.includes(newTag.trim().toLowerCase())) {
+      setTags([...tags, newTag.trim().toLowerCase()]);
+      setNewTag('');
+    }
+  };
+  const removeTag = (index: number) => setTags(tags.filter((_, i) => i !== index));
 
   // Mobile upload URL
   const mobileUploadUrl = typeof window !== 'undefined' 
@@ -469,9 +490,15 @@ export default function ProductDetailPage() {
               </Card>
             </div>
 
-            {/* Status */}
+            {/* Status & Visibility */}
             <Card>
-              <CardContent className="pt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Eye className="w-4 h-4" />
+                  Status & Visibility
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="flex items-center gap-6 flex-wrap">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })} className="w-4 h-4 rounded" />
@@ -486,6 +513,61 @@ export default function ProductDetailPage() {
                     <span>New Arrival</span>
                   </label>
                 </div>
+                
+                {/* Visibility Dropdown */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Visibility</label>
+                  <select
+                    value={formData.visibility}
+                    onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  >
+                    <option value="visible">Visible - Show everywhere</option>
+                    <option value="hidden">Hidden - Active but not shown to users (admin only)</option>
+                    <option value="catalog_only">Catalog Only - Show in catalog, not homepage</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formData.visibility === 'hidden' && "Product is active but won't appear on public pages. Still visible in admin, orders, and inventory."}
+                    {formData.visibility === 'catalog_only' && "Product appears in catalog/category pages but not on homepage or featured sections."}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tags */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Tag className="w-4 h-4" />
+                  Tags
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm text-muted-foreground">Add search tags like "bmw", "shift", "racing" to help users find this product</p>
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="Add tag" 
+                    value={newTag} 
+                    onChange={(e) => setNewTag(e.target.value)} 
+                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())} 
+                    className="h-9" 
+                  />
+                  <Button type="button" size="sm" onClick={addTag} className="h-9">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                {tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {tags.map((tag, index) => (
+                      <span key={index} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium">
+                        #{tag}
+                        <button type="button" onClick={() => removeTag(index)} className="hover:text-red-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -505,6 +587,7 @@ export default function ProductDetailPage() {
             productName={product.name}
             productSku={product.sku}
             productPrice={product.price ? parseFloat(product.price) : undefined}
+            productImages={product.images}
           />
         </div>
 

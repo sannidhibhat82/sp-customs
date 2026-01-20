@@ -217,6 +217,7 @@ function ProductsPageContent() {
   const [filters, setFilters] = useState({
     category: searchParams.get('category') || '',
     brand: searchParams.get('brand') || '',
+    tag: searchParams.get('tag') || '',  // Tag filter from URL
     sort: 'newest',
   });
 
@@ -243,6 +244,7 @@ function ProductsPageContent() {
       search: search || undefined,
       category_id: filters.category ? parseInt(filters.category) : undefined,
       brand_id: filters.brand ? parseInt(filters.brand) : undefined,
+      tags: filters.tag || undefined,  // Tag filter support
       page: pageParam,
       page_size: PAGE_SIZE,
     }),
@@ -486,13 +488,14 @@ function ProductsPageContent() {
         <div className="flex items-center justify-between mb-6">
           <p className="text-muted-foreground">
             Showing {sortedProducts.length} of {totalProducts} product{totalProducts !== 1 ? 's' : ''}
+            {filters.tag && <span className="ml-2 text-primary">• Tag: #{filters.tag}</span>}
           </p>
-          {(filters.category || filters.brand || search) && (
+          {(filters.category || filters.brand || filters.tag || search) && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
-                setFilters({ category: '', brand: '', sort: 'newest' });
+                setFilters({ category: '', brand: '', tag: '', sort: 'newest' });
                 setSearch('');
               }}
             >
@@ -525,10 +528,12 @@ function ProductsPageContent() {
             </div>
             <h3 className="text-xl font-semibold mb-2">No products found</h3>
             <p className="text-muted-foreground mb-6">
-              Try adjusting your search or filters
+              {filters.tag 
+                ? `No products found with tag "${filters.tag}". Try a different search.` 
+                : 'Try adjusting your search or filters'}
             </p>
             <Button onClick={() => {
-              setFilters({ category: '', brand: '', sort: 'newest' });
+              setFilters({ category: '', brand: '', tag: '', sort: 'newest' });
               setSearch('');
             }}>
               Clear Filters

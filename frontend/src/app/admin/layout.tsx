@@ -19,6 +19,7 @@ import {
   Home,
   BarChart3,
   ShoppingCart,
+  Truck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore, useUIStore } from '@/lib/store';
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils';
 const sidebarItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
+  { href: '/admin/direct-orders', icon: Truck, label: 'Direct Orders', description: 'Brand-shipped' },
   { href: '/admin/products', icon: Package, label: 'Products' },
   { href: '/admin/categories', icon: Layers, label: 'Categories' },
   { href: '/admin/brands', icon: Tags, label: 'Brands' },
@@ -145,7 +147,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {/* Logo */}
               <div className="h-16 flex items-center justify-between px-4 border-b border-border">
                 <Link href="/admin" className="flex items-center gap-2 group">
-                  <svg viewBox="0 0 1696 608" className="h-8 w-auto text-primary group-hover:text-primary/80 transition-colors">
+                  <svg viewBox="0 0 1696 608" className="h-8 w-auto text-foreground group-hover:text-foreground/80 transition-colors">
                     <path fill="currentColor" d="m535 217l85-112h-405c0 0-142.41 3.17-147 123-4.59 119.83 104.21 128.78 132 133 27.79 4.22 270 1 270 1 0 0 32.48 1.56 33 28 0.52 26.44-30 34-30 34h-335l-85 110 415 1c0 0 161.66 1.66 163-134 1.34-135.66-144-125-144-125h-260c0 0-36.59-4.44-31-29 5.59-24.56 14.63-25.45 28-29 13.37-3.55 311-1 311-1z"/>
                     <path fill="currentColor" d="m998 217c0 0 39.82 3.04 33 38-6.82 34.96-2 12-2 12 0 0-58.73 228.4 229 268 59.19 8.15 240.25-1.42 258-1 8.17 0.19 82-108 82-108l-327-2c0 0-97.87 0.94-113-87-0.61-3.54 17.96-49.76 18-52 1.1-60.99-19.63-105.66-56-139-36.37-33.34-121.64-41.04-131-42-9.36-0.96-320 1-320 1l-87 111z"/>
                     <path fill="currentColor" d="m535 217l85-112h-405c0 0-142.41 3.17-147 123-4.59 119.83 104.21 128.78 132 133 27.79 4.22 270 1 270 1 0 0 32.48 1.56 33 28 0.52 26.44-30 34-30 34h-335l-85 110 415 1c0 0 161.66 1.66 163-134 1.34-135.66-144-125-144-125h-260c0 0-36.59-4.44-31-29 5.59-24.56 14.63-25.45 28-29 13.37-3.55 311-1 311-1zm84 285v33h131v-110l272-2c0 0-18.24-43.77-21-56-2.76-12.23-5.66-27.97-6-47-0.12-6.56-10.79-4.38-11-4-0.32 0.58-65-1-65-1l-281 1c0 0 55.21 100.77-19 186z"/>

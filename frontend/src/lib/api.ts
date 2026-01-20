@@ -140,6 +140,9 @@ class ApiClient {
     is_featured?: boolean;
     in_stock?: boolean;
     search?: string;
+    tags?: string;  // Comma-separated tags for filtering
+    visibility?: string;  // Filter by visibility (admin use)
+    include_hidden?: boolean;  // Include hidden products (admin only)
     sort_by?: string;
     sort_order?: string;
   }) {
@@ -760,6 +763,75 @@ class ApiClient {
 
   async updateOrderStatus(orderId: number, status: string) {
     const response = await this.client.post(`/orders/${orderId}/update-status`, null, {
+      params: { status }
+    });
+    return response.data;
+  }
+
+  // ============ Direct Orders (Brand-shipped) ============
+
+  async getDirectOrders(params?: { status?: string; page?: number; page_size?: number }) {
+    const response = await this.client.get('/orders/direct', { params });
+    return response.data;
+  }
+
+  async getDirectOrderStats() {
+    const response = await this.client.get('/orders/direct/stats');
+    return response.data;
+  }
+
+  async getDirectOrder(orderId: number) {
+    const response = await this.client.get(`/orders/direct/${orderId}`);
+    return response.data;
+  }
+
+  async createDirectOrder(data: {
+    items: Array<{
+      product_id?: number;
+      variant_id?: number;
+      product_name: string;
+      product_sku?: string;
+      variant_name?: string;
+      variant_options?: Record<string, any>;
+      quantity: number;
+      unit_price?: number;
+      extra_data?: Record<string, any>;
+    }>;
+    customer_info?: Record<string, any>;
+    brand_name?: string;
+    brand_id?: number;
+    tracking_number?: string;
+    carrier?: string;
+    notes?: string;
+    extra_data?: Record<string, any>;
+    order_date?: string;
+  }) {
+    const response = await this.client.post('/orders/direct', data);
+    return response.data;
+  }
+
+  async updateDirectOrder(orderId: number, data: {
+    status?: string;
+    customer_info?: Record<string, any>;
+    brand_name?: string;
+    brand_id?: number;
+    tracking_number?: string;
+    carrier?: string;
+    notes?: string;
+    extra_data?: Record<string, any>;
+    order_date?: string;
+  }) {
+    const response = await this.client.put(`/orders/direct/${orderId}`, data);
+    return response.data;
+  }
+
+  async deleteDirectOrder(orderId: number) {
+    const response = await this.client.delete(`/orders/direct/${orderId}`);
+    return response.data;
+  }
+
+  async updateDirectOrderStatus(orderId: number, status: string) {
+    const response = await this.client.post(`/orders/direct/${orderId}/update-status`, null, {
       params: { status }
     });
     return response.data;

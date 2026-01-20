@@ -191,3 +191,100 @@ class InvoiceRequest(BaseModel):
     order_id: int
     include_logo: bool = True
     include_barcode: bool = True
+
+
+# ============ Direct Orders (Brand-shipped) ============
+
+class DirectOrderItemCreate(BaseModel):
+    product_id: Optional[int] = None
+    variant_id: Optional[int] = None
+    product_name: str
+    product_sku: Optional[str] = None
+    variant_name: Optional[str] = None
+    variant_options: Dict[str, Any] = Field(default_factory=dict)
+    quantity: int = 1
+    unit_price: Optional[Decimal] = None
+    extra_data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DirectOrderItemResponse(BaseModel):
+    id: int
+    uuid: str
+    order_id: int
+    product_id: Optional[int] = None
+    variant_id: Optional[int] = None
+    product_name: str
+    product_sku: Optional[str] = None
+    variant_name: Optional[str] = None
+    variant_options: Dict[str, Any] = Field(default_factory=dict)
+    quantity: int
+    unit_price: Optional[Decimal] = None
+    extra_data: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DirectOrderCreate(BaseModel):
+    items: List[DirectOrderItemCreate]
+    customer_info: Dict[str, Any] = Field(default_factory=dict)
+    brand_name: Optional[str] = None
+    brand_id: Optional[int] = None
+    tracking_number: Optional[str] = None
+    carrier: Optional[str] = None
+    notes: Optional[str] = None
+    extra_data: Dict[str, Any] = Field(default_factory=dict)
+    order_date: Optional[datetime] = None  # When the order was placed
+
+
+class DirectOrderUpdate(BaseModel):
+    status: Optional[str] = None
+    customer_info: Optional[Dict[str, Any]] = None
+    brand_name: Optional[str] = None
+    brand_id: Optional[int] = None
+    tracking_number: Optional[str] = None
+    carrier: Optional[str] = None
+    notes: Optional[str] = None
+    extra_data: Optional[Dict[str, Any]] = None
+    order_date: Optional[datetime] = None
+
+
+class DirectOrderResponse(BaseModel):
+    id: int
+    uuid: str
+    order_number: str
+    status: str
+    customer_info: Dict[str, Any]
+    brand_name: Optional[str] = None
+    brand_id: Optional[int] = None
+    tracking_number: Optional[str] = None
+    carrier: Optional[str] = None
+    notes: Optional[str] = None
+    extra_data: Dict[str, Any]
+    created_by_id: Optional[int] = None
+    items: List[DirectOrderItemResponse] = []
+    order_date: datetime
+    created_at: datetime
+    updated_at: datetime
+    shipped_at: Optional[datetime] = None
+    delivered_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class DirectOrderListResponse(BaseModel):
+    id: int
+    uuid: str
+    order_number: str
+    status: str
+    customer_info: Dict[str, Any]
+    brand_name: Optional[str] = None
+    item_count: int = 0
+    order_date: datetime
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

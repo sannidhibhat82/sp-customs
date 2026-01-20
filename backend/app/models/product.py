@@ -49,6 +49,12 @@ class Product(Base):
     is_featured = Column(Boolean, default=False)
     is_new = Column(Boolean, default=True)
     visibility = Column(String(50), default="visible")  # visible, hidden, catalog_only
+    # hidden = active but not shown to users on public pages (only visible in admin)
+    # visible = shown everywhere
+    # catalog_only = shown in catalog but not on homepage/featured sections
+    
+    # Tags for search (e.g., ["bmw", "shift", "racing"])
+    tags = Column(JSONB, default=list, nullable=False)
     
     # SEO
     meta_title = Column(String(255), nullable=True)

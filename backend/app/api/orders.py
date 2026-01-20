@@ -10,14 +10,16 @@ from sqlalchemy import select, func, desc
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models.order import Order, OrderItem
+from app.models.order import Order, OrderItem, DirectOrder, DirectOrderItem
 from app.models.product import Product
 from app.models.variant import ProductVariant
 from app.models.user import User
 from app.models.inventory import Inventory, InventoryLog
 from app.schemas.order import (
     OrderCreate, OrderUpdate, OrderResponse, OrderListResponse,
-    OrderItemCreate, OrderItemResponse, OrderScanRequest, OrderScanResponse
+    OrderItemCreate, OrderItemResponse, OrderScanRequest, OrderScanResponse,
+    DirectOrderCreate, DirectOrderUpdate, DirectOrderResponse, DirectOrderListResponse,
+    DirectOrderItemCreate, DirectOrderItemResponse
 )
 from app.services.auth import get_admin_user
 from app.services.barcode_generator import BarcodeGenerator
@@ -109,6 +111,318 @@ async def get_order_stats(
         "status_counts": status_counts,
     }
 
+
+# ============ Direct Orders (Brand-shipped) ============
+# NOTE: These routes MUST be defined before /{order_id} to avoid route conflicts
+
+def generate_direct_order_number() -> str:
+    """Generate a unique direct order number."""
+    now = datetime.now()
+    return f"DO-{now.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}"
+
+
+@router.get("/direct", response_model=List[DirectOrderListResponse])
+async def list_direct_orders(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """List all direct orders (brand-shipped) with pagination."""
+    query = select(DirectOrder).options(selectinload(DirectOrder.items))
+    
+    if status_filter:
+        query = query.where(DirectOrder.status == status_filter)
+    
+    # Order by newest first
+    query = query.order_by(desc(DirectOrder.order_date))
+    
+    # Pagination
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
+    
+    result = await db.execute(query)
+    orders = result.scalars().all()
+    
+    return [
+        DirectOrderListResponse(
+            id=order.id,
+            uuid=order.uuid,
+            order_number=order.order_number,
+            status=order.status,
+            customer_info=order.customer_info,
+            brand_name=order.brand_name,
+            item_count=len(order.items),
+            order_date=order.order_date,
+            created_at=order.created_at,
+            updated_at=order.updated_at,
+        )
+        for order in orders
+    ]
+
+
+@router.get("/direct/stats")
+async def get_direct_order_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Get direct order statistics."""
+    # Total orders
+    total_result = await db.execute(select(func.count(DirectOrder.id)))
+    total_orders = total_result.scalar() or 0
+    
+    # Status counts
+    status_counts = {}
+    for status in ["pending", "processing", "shipped", "delivered", "cancelled"]:
+        result = await db.execute(
+            select(func.count(DirectOrder.id)).where(DirectOrder.status == status)
+        )
+        status_counts[status] = result.scalar() or 0
+    
+    # Today's orders
+    today = datetime.now().date()
+    today_result = await db.execute(
+        select(func.count(DirectOrder.id)).where(func.date(DirectOrder.order_date) == today)
+    )
+    today_orders = today_result.scalar() or 0
+    
+    return {
+        "total_orders": total_orders,
+        "today_orders": today_orders,
+        "status_counts": status_counts,
+    }
+
+
+@router.get("/direct/{order_id}", response_model=DirectOrderResponse)
+async def get_direct_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Get a specific direct order."""
+    result = await db.execute(
+        select(DirectOrder)
+        .options(selectinload(DirectOrder.items))
+        .where(DirectOrder.id == order_id)
+    )
+    order = result.scalar_one_or_none()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Direct order not found")
+    
+    return DirectOrderResponse(
+        id=order.id,
+        uuid=order.uuid,
+        order_number=order.order_number,
+        status=order.status,
+        customer_info=order.customer_info,
+        brand_name=order.brand_name,
+        brand_id=order.brand_id,
+        tracking_number=order.tracking_number,
+        carrier=order.carrier,
+        notes=order.notes,
+        extra_data=order.extra_data,
+        created_by_id=order.created_by_id,
+        items=[DirectOrderItemResponse.model_validate(item) for item in order.items],
+        order_date=order.order_date,
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+        shipped_at=order.shipped_at,
+        delivered_at=order.delivered_at,
+    )
+
+
+@router.post("/direct", response_model=DirectOrderResponse)
+async def create_direct_order(
+    data: DirectOrderCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """
+    Create a new direct order (brand-shipped).
+    NOTE: This does NOT affect inventory as items are shipped directly by brands.
+    """
+    # Generate order number
+    order_number = generate_direct_order_number()
+    
+    # Create order
+    order = DirectOrder(
+        order_number=order_number,
+        status="pending",
+        customer_info=data.customer_info,
+        brand_name=data.brand_name,
+        brand_id=data.brand_id,
+        tracking_number=data.tracking_number,
+        carrier=data.carrier,
+        notes=data.notes,
+        extra_data=data.extra_data,
+        order_date=data.order_date or datetime.utcnow(),
+        created_by_id=current_user.id,
+    )
+    
+    db.add(order)
+    await db.flush()  # Get the order ID
+    
+    # Create order items (NO inventory deduction)
+    for item_data in data.items:
+        item = DirectOrderItem(
+            order_id=order.id,
+            product_id=item_data.product_id,
+            variant_id=item_data.variant_id,
+            product_name=item_data.product_name,
+            product_sku=item_data.product_sku,
+            variant_name=item_data.variant_name,
+            variant_options=item_data.variant_options,
+            quantity=item_data.quantity,
+            unit_price=item_data.unit_price,
+            extra_data=item_data.extra_data,
+        )
+        db.add(item)
+    
+    await db.commit()
+    await db.refresh(order)
+    
+    # Reload with items
+    result = await db.execute(
+        select(DirectOrder)
+        .options(selectinload(DirectOrder.items))
+        .where(DirectOrder.id == order.id)
+    )
+    order = result.scalar_one()
+    
+    return DirectOrderResponse(
+        id=order.id,
+        uuid=order.uuid,
+        order_number=order.order_number,
+        status=order.status,
+        customer_info=order.customer_info,
+        brand_name=order.brand_name,
+        brand_id=order.brand_id,
+        tracking_number=order.tracking_number,
+        carrier=order.carrier,
+        notes=order.notes,
+        extra_data=order.extra_data,
+        created_by_id=order.created_by_id,
+        items=[DirectOrderItemResponse.model_validate(item) for item in order.items],
+        order_date=order.order_date,
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+        shipped_at=order.shipped_at,
+        delivered_at=order.delivered_at,
+    )
+
+
+@router.put("/direct/{order_id}", response_model=DirectOrderResponse)
+async def update_direct_order(
+    order_id: int,
+    data: DirectOrderUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Update a direct order."""
+    result = await db.execute(
+        select(DirectOrder)
+        .options(selectinload(DirectOrder.items))
+        .where(DirectOrder.id == order_id)
+    )
+    order = result.scalar_one_or_none()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Direct order not found")
+    
+    update_data = data.model_dump(exclude_unset=True)
+    
+    # Handle status changes
+    if "status" in update_data:
+        new_status = update_data["status"]
+        if new_status == "shipped" and not order.shipped_at:
+            order.shipped_at = datetime.utcnow()
+        elif new_status == "delivered" and not order.delivered_at:
+            order.delivered_at = datetime.utcnow()
+    
+    for key, value in update_data.items():
+        setattr(order, key, value)
+    
+    await db.commit()
+    await db.refresh(order)
+    
+    return DirectOrderResponse(
+        id=order.id,
+        uuid=order.uuid,
+        order_number=order.order_number,
+        status=order.status,
+        customer_info=order.customer_info,
+        brand_name=order.brand_name,
+        brand_id=order.brand_id,
+        tracking_number=order.tracking_number,
+        carrier=order.carrier,
+        notes=order.notes,
+        extra_data=order.extra_data,
+        created_by_id=order.created_by_id,
+        items=[DirectOrderItemResponse.model_validate(item) for item in order.items],
+        order_date=order.order_date,
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+        shipped_at=order.shipped_at,
+        delivered_at=order.delivered_at,
+    )
+
+
+@router.delete("/direct/{order_id}")
+async def delete_direct_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Delete a direct order."""
+    result = await db.execute(
+        select(DirectOrder).where(DirectOrder.id == order_id)
+    )
+    order = result.scalar_one_or_none()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Direct order not found")
+    
+    await db.delete(order)
+    await db.commit()
+    
+    return {"success": True, "message": "Direct order deleted"}
+
+
+@router.post("/direct/{order_id}/update-status")
+async def update_direct_order_status(
+    order_id: int,
+    status: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user)
+):
+    """Quick status update for a direct order."""
+    valid_statuses = ["pending", "processing", "shipped", "delivered", "cancelled"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+    
+    result = await db.execute(
+        select(DirectOrder).where(DirectOrder.id == order_id)
+    )
+    order = result.scalar_one_or_none()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Direct order not found")
+    
+    order.status = status
+    
+    if status == "shipped" and not order.shipped_at:
+        order.shipped_at = datetime.utcnow()
+    elif status == "delivered" and not order.delivered_at:
+        order.delivered_at = datetime.utcnow()
+    
+    await db.commit()
+    
+    return {"success": True, "status": status}
+
+
+# ============ Regular Orders ============
 
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(
@@ -483,6 +797,13 @@ async def scan_product_for_order(
     
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Check if product is active (inactive products cannot be added to orders)
+    if not product.is_active:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Product '{product.name}' is inactive and cannot be added to orders"
+        )
     
     # Get inventory info
     if variant:

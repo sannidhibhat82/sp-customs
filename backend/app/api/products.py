@@ -5,7 +5,7 @@ from typing import List, Optional
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, and_
+from sqlalchemy import select, func, or_, and_, String
 from sqlalchemy.orm import selectinload
 import re
 
@@ -51,11 +51,18 @@ async def list_products(
     is_featured: Optional[bool] = None,
     in_stock: Optional[bool] = None,
     search: Optional[str] = None,
+    tags: Optional[str] = None,  # Comma-separated tags for filtering
+    visibility: Optional[str] = None,  # Filter by visibility (admin use)
+    include_hidden: bool = Query(False, description="Include hidden products (admin only)"),
     sort_by: str = Query("created_at", regex="^(created_at|name|price|sort_order)$"),
     sort_order: str = Query("desc", regex="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db)
 ):
-    """List products with pagination and filters."""
+    """List products with pagination and filters.
+    
+    For public views (is_active=True), hidden products are automatically excluded
+    unless include_hidden=True (for admin use).
+    """
     query = select(Product).options(
         selectinload(Product.category),
         selectinload(Product.brand),
@@ -70,16 +77,37 @@ async def list_products(
         query = query.where(Product.brand_id == brand_id)
     if is_active is not None:
         query = query.where(Product.is_active == is_active)
+        # For public views (is_active=True), exclude hidden products unless explicitly requested
+        if is_active == True and not include_hidden:
+            query = query.where(Product.visibility != "hidden")
     if is_featured is not None:
         query = query.where(Product.is_featured == is_featured)
+    if visibility:
+        query = query.where(Product.visibility == visibility)
+    
+    # Tag search
+    if tags:
+        tag_list = [t.strip().lower() for t in tags.split(",") if t.strip()]
+        if tag_list:
+            # Search for any matching tag (case-insensitive)
+            for tag in tag_list:
+                # Use JSONB containment or text search
+                query = query.where(
+                    func.lower(func.cast(Product.tags, String)).contains(tag.lower())
+                )
+    
+    # Search including tags
     if search:
         search_term = f"%{search}%"
+        search_lower = search.lower()
         query = query.where(
             or_(
                 Product.name.ilike(search_term),
                 Product.description.ilike(search_term),
                 Product.sku.ilike(search_term),
                 Product.barcode.ilike(search_term),
+                # Also search in tags
+                func.lower(func.cast(Product.tags, String)).contains(search_lower),
             )
         )
     
@@ -91,7 +119,7 @@ async def list_products(
         else:
             query = query.where(or_(Inventory.quantity == 0, Inventory.quantity == None))
     
-    # Count total
+    # Count total with same filters
     count_query = select(func.count(Product.id))
     if category_id:
         count_query = count_query.where(Product.category_id == category_id)
@@ -99,12 +127,24 @@ async def list_products(
         count_query = count_query.where(Product.brand_id == brand_id)
     if is_active is not None:
         count_query = count_query.where(Product.is_active == is_active)
+        if is_active == True and not include_hidden:
+            count_query = count_query.where(Product.visibility != "hidden")
+    if visibility:
+        count_query = count_query.where(Product.visibility == visibility)
+    if tags:
+        tag_list = [t.strip().lower() for t in tags.split(",") if t.strip()]
+        for tag in tag_list:
+            count_query = count_query.where(
+                func.lower(func.cast(Product.tags, String)).contains(tag.lower())
+            )
     if search:
+        search_lower = search.lower()
         count_query = count_query.where(
             or_(
                 Product.name.ilike(search_term),
                 Product.description.ilike(search_term),
                 Product.sku.ilike(search_term),
+                func.lower(func.cast(Product.tags, String)).contains(search_lower),
             )
         )
     
@@ -151,6 +191,8 @@ async def list_products(
             is_active=p.is_active,
             is_featured=p.is_featured,
             is_new=p.is_new,
+            visibility=p.visibility,
+            tags=p.tags or [],
             created_at=p.created_at,
         ))
     
@@ -172,24 +214,36 @@ async def search_products(
     q: str = Query(..., min_length=1),
     limit: int = Query(10, le=50),
     include_variants: bool = Query(True, description="Include product variants in search"),
+    include_hidden: bool = Query(False, description="Include hidden products (for admin order creation)"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Quick search for products and variants (autocomplete)."""
+    """Quick search for products and variants (autocomplete).
+    
+    By default excludes hidden products. Set include_hidden=True for admin order creation.
+    """
     from app.models.variant import ProductVariant, VariantInventory, VariantImage
     
     search_term = f"%{q}%"
+    search_lower = q.lower()
     results = []
     
-    # Search products
+    # Build visibility filter
+    visibility_filter = Product.is_active == True
+    if not include_hidden:
+        visibility_filter = and_(Product.is_active == True, Product.visibility != "hidden")
+    
+    # Search products - also search in tags
     product_result = await db.execute(
         select(Product)
         .options(selectinload(Product.images), selectinload(Product.inventory))
         .where(
-            Product.is_active == True,
+            visibility_filter,
             or_(
                 Product.name.ilike(search_term),
                 Product.sku.ilike(search_term),
                 Product.barcode.ilike(search_term),
+                # Also search in tags
+                func.lower(func.cast(Product.tags, String)).contains(search_lower),
             )
         )
         .limit(limit)
@@ -207,11 +261,21 @@ async def search_products(
             "quantity": p.inventory.available_quantity if p.inventory else 0,
             "primary_image": p.primary_image,
             "is_variant": False,
+            "tags": p.tags or [],
         })
     
     # Search variants if enabled
     if include_variants and len(results) < limit:
         variant_limit = limit - len(results)
+        # Build variant visibility filter
+        variant_visibility_filter = and_(ProductVariant.is_active == True, Product.is_active == True)
+        if not include_hidden:
+            variant_visibility_filter = and_(
+                ProductVariant.is_active == True,
+                Product.is_active == True,
+                Product.visibility != "hidden"
+            )
+        
         # Join with Product to also search by parent product name
         variant_result = await db.execute(
             select(ProductVariant)
@@ -222,8 +286,7 @@ async def search_products(
                 selectinload(ProductVariant.images)
             )
             .where(
-                ProductVariant.is_active == True,
-                Product.is_active == True,
+                variant_visibility_filter,
                 or_(
                     # Search by variant fields
                     ProductVariant.name.ilike(search_term),
@@ -344,6 +407,7 @@ async def get_product(
         attributes=product.attributes,
         specifications=product.specifications,
         features=product.features,
+        tags=product.tags or [],
         category_id=product.category_id,
         brand_id=product.brand_id,
         category=CategoryInfo.model_validate(product.category) if product.category else None,
@@ -416,6 +480,7 @@ async def create_product(
         attributes=data.attributes,
         specifications=data.specifications,
         features=data.features,
+        tags=data.tags,
         category_id=data.category_id,
         brand_id=data.brand_id,
         is_active=data.is_active,
@@ -495,6 +560,7 @@ async def create_product(
         attributes=product.attributes,
         specifications=product.specifications,
         features=product.features,
+        tags=product.tags or [],
         category_id=product.category_id,
         brand_id=product.brand_id,
         category=CategoryInfo.model_validate(product.category) if product.category else None,
@@ -600,6 +666,7 @@ async def update_product(
         attributes=product.attributes,
         specifications=product.specifications,
         features=product.features,
+        tags=product.tags or [],
         category_id=product.category_id,
         brand_id=product.brand_id,
         category=CategoryInfo.model_validate(product.category) if product.category else None,

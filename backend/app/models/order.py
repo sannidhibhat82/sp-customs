@@ -152,3 +152,105 @@ class OrderItem(Base):
     
     def __repr__(self):
         return f"<OrderItem {self.product_sku} x{self.quantity}>"
+
+
+class DirectOrder(Base):
+    """
+    Direct Orders - Orders shipped directly by brands.
+    These orders do NOT affect inventory.
+    Used for manual tracking of brand-fulfilled orders.
+    """
+    __tablename__ = "direct_orders"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()), index=True)
+    
+    # Order number (human-readable)
+    order_number = Column(String(50), unique=True, nullable=False, index=True)
+    
+    # Status: pending, processing, shipped, delivered, cancelled
+    status = Column(String(50), default="pending", index=True)
+    
+    # Customer info (flexible JSONB)
+    customer_info = Column(JSONB, default=dict, nullable=False)
+    # Structure: {
+    #   "customer_name": "...",
+    #   "email": "...",
+    #   "phone": "...",
+    #   "address": "...",
+    # }
+    
+    # Brand info
+    brand_name = Column(String(255), nullable=True)
+    brand_id = Column(Integer, ForeignKey("brands.id", ondelete="SET NULL"), nullable=True)
+    
+    # Tracking info
+    tracking_number = Column(String(255), nullable=True)
+    carrier = Column(String(100), nullable=True)
+    
+    # Notes
+    notes = Column(Text, nullable=True)
+    
+    # Additional metadata
+    extra_data = Column(JSONB, default=dict, nullable=False)
+    
+    # User who created the order
+    created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    
+    # Timestamps
+    order_date = Column(DateTime(timezone=True), server_default=func.now())  # When order was placed
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    shipped_at = Column(DateTime(timezone=True), nullable=True)
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    items = relationship("DirectOrderItem", back_populates="order", cascade="all, delete-orphan")
+    brand = relationship("Brand")
+    created_by = relationship("User")
+    
+    def __repr__(self):
+        return f"<DirectOrder {self.order_number}>"
+
+
+class DirectOrderItem(Base):
+    """
+    Line items for Direct Orders.
+    Does NOT affect inventory.
+    """
+    __tablename__ = "direct_order_items"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()), index=True)
+    
+    order_id = Column(Integer, ForeignKey("direct_orders.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    variant_id = Column(Integer, ForeignKey("product_variants.id", ondelete="SET NULL"), nullable=True)
+    
+    # Product info (snapshot)
+    product_name = Column(String(500), nullable=False)
+    product_sku = Column(String(100), nullable=True)
+    
+    # Variant info (if applicable)
+    variant_name = Column(String(255), nullable=True)
+    variant_options = Column(JSONB, default=dict, nullable=False)
+    
+    # Quantity
+    quantity = Column(Integer, nullable=False, default=1)
+    
+    # Optional pricing (for reference)
+    unit_price = Column(Numeric(12, 2), nullable=True)
+    
+    # Additional item metadata
+    extra_data = Column(JSONB, default=dict, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    order = relationship("DirectOrder", back_populates="items")
+    product = relationship("Product")
+    variant = relationship("ProductVariant")
+    
+    def __repr__(self):
+        return f"<DirectOrderItem {self.product_name} x{self.quantity}>"

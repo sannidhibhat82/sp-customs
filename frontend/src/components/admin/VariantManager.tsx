@@ -38,11 +38,21 @@ import { api } from '@/lib/api';
 import { toast } from '@/components/ui/use-toast';
 import { cn, compressImage, getImageSrc } from '@/lib/utils';
 
+interface ProductImage {
+  id: number;
+  uuid: string;
+  filename: string;
+  image_data: string;
+  is_primary: boolean;
+  sort_order: number;
+}
+
 interface VariantManagerProps {
   productId: number;
   productName: string;
   productSku: string;
   productPrice?: number;
+  productImages?: ProductImage[];  // Main product images for "use same" feature
 }
 
 interface VariantImage {
@@ -77,7 +87,7 @@ const PRESET_OPTIONS = [
   { name: 'Material', values: ['Leather', 'Fabric', 'Plastic', 'Metal', 'Carbon Fiber'] },
 ];
 
-export function VariantManager({ productId, productName, productSku, productPrice }: VariantManagerProps) {
+export function VariantManager({ productId, productName, productSku, productPrice, productImages = [] }: VariantManagerProps) {
   const queryClient = useQueryClient();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImageDialog, setShowImageDialog] = useState<{ open: boolean; variantId: number | null }>({
@@ -209,6 +219,28 @@ export function VariantManager({ productId, productName, productSku, productPric
       });
     },
   });
+
+  // Track which variants should use product images (stored locally, not duplicated)
+  const [variantsUsingProductImages, setVariantsUsingProductImages] = useState<Set<number>>(new Set());
+
+  // Toggle variant to use/not use product images
+  const toggleUseProductImages = (variantId: number) => {
+    setVariantsUsingProductImages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(variantId)) {
+        newSet.delete(variantId);
+      } else {
+        newSet.add(variantId);
+      }
+      return newSet;
+    });
+    toast({ 
+      title: variantsUsingProductImages.has(variantId) 
+        ? 'Variant will use its own images' 
+        : 'Variant will use main product images' 
+    });
+    setShowImageDialog({ open: false, variantId: null });
+  };
 
   const resetForm = () => {
     setVariantForm({
@@ -439,11 +471,20 @@ export function VariantManager({ productId, productName, productSku, productPric
                   className="flex items-center gap-4 p-4 cursor-pointer hover:bg-secondary/30 transition-colors"
                   onClick={() => toggleExpand(variant.id)}
                 >
-                  {/* Image */}
-                  <div className="w-14 h-14 rounded-lg bg-secondary overflow-hidden flex-shrink-0">
+                  {/* Image - Show product image if using same, otherwise variant image */}
+                  <div className={cn(
+                    "w-14 h-14 rounded-lg bg-secondary overflow-hidden flex-shrink-0",
+                    variantsUsingProductImages.has(variant.id) && "ring-2 ring-primary/50"
+                  )}>
                     {variant.primary_image ? (
                       <img
                         src={getImageSrc(variant.primary_image)}
+                        alt={variant.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : variantsUsingProductImages.has(variant.id) && productImages && productImages.length > 0 ? (
+                      <img
+                        src={getImageSrc(productImages[0].image_data)}
                         alt={variant.name}
                         className="w-full h-full object-cover"
                       />
@@ -668,21 +709,27 @@ export function VariantManager({ productId, productName, productSku, productPric
                           <div className="border-t border-border pt-4">
                             <div className="flex items-center justify-between mb-3">
                               <span className="text-sm text-muted-foreground">
-                                Variant Images ({variant.images?.length || 0})
+                                {variantsUsingProductImages.has(variant.id) 
+                                  ? 'Using Main Product Images' 
+                                  : `Variant Images (${variant.images?.length || 0})`}
                               </span>
                               <div className="flex items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowMobileUploadDialog({ open: true, variant });
-                                  }}
-                                  title="Scan QR to upload from phone"
-                                >
-                                  <QrCode className="w-4 h-4 mr-2" />
-                                  Mobile
-                                </Button>
+                                {!variantsUsingProductImages.has(variant.id) && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowMobileUploadDialog({ open: true, variant });
+                                      }}
+                                      title="Scan QR to upload from phone"
+                                    >
+                                      <QrCode className="w-4 h-4 mr-2" />
+                                      Mobile
+                                    </Button>
+                                  </>
+                                )}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -691,13 +738,49 @@ export function VariantManager({ productId, productName, productSku, productPric
                                     setShowImageDialog({ open: true, variantId: variant.id });
                                   }}
                                 >
-                                  <Upload className="w-4 h-4 mr-2" />
-                                  Add Image
+                                  {variantsUsingProductImages.has(variant.id) ? (
+                                    <>
+                                      <ImageIcon className="w-4 h-4 mr-2" />
+                                      Change
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="w-4 h-4 mr-2" />
+                                      Add Image
+                                    </>
+                                  )}
                                 </Button>
                               </div>
                             </div>
                             
-                            {variant.images && variant.images.length > 0 ? (
+                            {/* Show product images if using same as main product */}
+                            {variantsUsingProductImages.has(variant.id) && productImages && productImages.length > 0 ? (
+                              <div>
+                                <div className="flex flex-wrap gap-3 mb-2">
+                                  {productImages.map((img, i) => (
+                                    <div 
+                                      key={img.id || i}
+                                      className="relative w-20 h-20 rounded-lg overflow-hidden border-2 border-primary/30 bg-secondary"
+                                    >
+                                      <img
+                                        src={getImageSrc(img.image_data)}
+                                        alt={`Product image ${i + 1}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                      {img.is_primary && (
+                                        <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-primary text-primary-foreground text-[10px] rounded">
+                                          Primary
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                                <p className="text-xs text-primary flex items-center gap-1">
+                                  <ImageIcon className="w-3 h-3" />
+                                  Same images as main product (not duplicated)
+                                </p>
+                              </div>
+                            ) : variant.images && variant.images.length > 0 ? (
                               <div className="flex flex-wrap gap-3">
                                 {variant.images.map((img) => (
                                   <div 
@@ -729,7 +812,22 @@ export function VariantManager({ productId, productName, productSku, productPric
                                 ))}
                               </div>
                             ) : (
-                              <p className="text-sm text-muted-foreground">No images uploaded for this variant</p>
+                              <div className="text-center py-4">
+                                <p className="text-sm text-muted-foreground mb-2">No images for this variant</p>
+                                {productImages && productImages.length > 0 && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleUseProductImages(variant.id);
+                                    }}
+                                  >
+                                    <ImageIcon className="w-4 h-4 mr-2" />
+                                    Use Same as Main Product
+                                  </Button>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}
@@ -940,6 +1038,68 @@ export function VariantManager({ productId, productName, productSku, productPric
           </DialogHeader>
 
           <div className="py-4 space-y-4">
+            {/* Use Same as Main Product Option */}
+            {productImages && productImages.length > 0 ? (
+              <div className="border border-primary/50 bg-primary/5 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                    <ImageIcon className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Use Same as Main Product</p>
+                    <p className="text-xs text-muted-foreground">
+                      Display the same {productImages.length} image(s) as the main product (no duplication)
+                    </p>
+                  </div>
+                  <Button
+                    variant={showImageDialog.variantId && variantsUsingProductImages.has(showImageDialog.variantId) ? "secondary" : "default"}
+                    size="sm"
+                    onClick={() => {
+                      if (showImageDialog.variantId) {
+                        toggleUseProductImages(showImageDialog.variantId);
+                      }
+                    }}
+                  >
+                    {showImageDialog.variantId && variantsUsingProductImages.has(showImageDialog.variantId) 
+                      ? 'Using Product Images ✓' 
+                      : 'Use Product Images'}
+                  </Button>
+                </div>
+                {/* Preview of product images */}
+                <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                  {productImages.slice(0, 5).map((img, i) => (
+                    <div key={img.id || i} className="w-12 h-12 rounded bg-secondary overflow-hidden flex-shrink-0 border border-border">
+                      <img
+                        src={getImageSrc(img.image_data)}
+                        alt={`Product image ${i + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                  {productImages.length > 5 && (
+                    <div className="w-12 h-12 rounded bg-secondary flex items-center justify-center text-xs text-muted-foreground flex-shrink-0">
+                      +{productImages.length - 5}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="border border-border rounded-lg p-4 text-center">
+                <ImageIcon className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No main product images available</p>
+                <p className="text-xs text-muted-foreground">Upload images to the main product first, or upload variant-specific images below</p>
+              </div>
+            )}
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or upload variant-specific images</span>
+              </div>
+            </div>
+
             {/* Desktop Upload */}
             <label className="block">
               <div className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors">

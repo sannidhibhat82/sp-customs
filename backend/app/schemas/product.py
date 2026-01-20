@@ -46,10 +46,11 @@ class ProductBase(BaseModel):
     attributes: Dict[str, Any] = {}
     specifications: Dict[str, Any] = {}
     features: List[str] = []
+    tags: List[str] = []  # Tags for search (e.g., ["bmw", "shift", "racing"])
     is_active: bool = True
     is_featured: bool = False
     is_new: bool = True
-    visibility: str = "visible"
+    visibility: str = "visible"  # visible, hidden, catalog_only
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
     sort_order: int = 0
@@ -72,10 +73,11 @@ class ProductUpdate(BaseModel):
     attributes: Optional[Dict[str, Any]] = None
     specifications: Optional[Dict[str, Any]] = None
     features: Optional[List[str]] = None
+    tags: Optional[List[str]] = None  # Tags for search
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
     is_new: Optional[bool] = None
-    visibility: Optional[str] = None
+    visibility: Optional[str] = None  # visible, hidden, catalog_only
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
     sort_order: Optional[int] = None
@@ -131,6 +133,7 @@ class ProductResponse(BaseModel):
     attributes: Dict[str, Any] = {}
     specifications: Dict[str, Any] = {}
     features: List[str] = []
+    tags: List[str] = []  # Tags for search
     category_id: Optional[int] = None
     brand_id: Optional[int] = None
     category: Optional[CategoryInfo] = None
@@ -169,6 +172,8 @@ class ProductListResponse(BaseModel):
     is_active: bool
     is_featured: bool
     is_new: bool
+    visibility: str = "visible"  # Include visibility for admin use
+    tags: List[str] = []  # Tags for search
     created_at: datetime
 
     class Config:

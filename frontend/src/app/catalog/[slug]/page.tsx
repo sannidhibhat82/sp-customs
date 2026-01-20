@@ -233,7 +233,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
               {fullProduct.inventory?.is_in_stock ? (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>In Stock ({fullProduct.inventory.available_quantity} available)</span>
+                  <span>In Stock</span>
                 </>
               ) : (
                 <>
