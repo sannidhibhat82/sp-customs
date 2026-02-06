@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "SP Customs - Vehicle Gadgets Platform"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
+    ENABLE_API_DOCS: bool = True  # Set to false to hide /docs and /redoc
     
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://spcustoms:spcustoms123@localhost:5434/sp_customs"

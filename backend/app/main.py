@@ -40,6 +40,8 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="Dynamic Vehicle Gadgets Inventory & Catalog Platform",
     lifespan=lifespan,
+    docs_url="/docs" if settings.ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
 )
 
 # CORS middleware
@@ -55,16 +57,21 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api")
 
 
+
+
+
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {
+    out = {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
-        "docs": "/docs",
         "api": "/api",
     }
+    if settings.ENABLE_API_DOCS:
+        out["docs"] = "/docs"
+    return out
 
 
 @app.get("/health")
