@@ -738,9 +738,17 @@ async def delete_product(
     return {"message": "Product deleted successfully"}
 
 
-def _variant_slug(name: str) -> str:
-    """URL-friendly slug for variant name (used in SKU suffix)."""
+# DB limits: product_variants.sku and .barcode are VARCHAR(100); .name is String(255)
+VARIANT_NAME_MAX_LEN = 255
+VARIANT_SKU_MAX_LEN = 100
+
+
+def _variant_slug(name: str, max_len: Optional[int] = None) -> str:
+    """URL-friendly slug for variant name (used in SKU suffix). Truncates to max_len if set."""
     s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    s = s or "var"
+    if max_len is not None and len(s) > max_len:
+        s = s[:max_len].rstrip("-")
     return s or "var"
 
 
@@ -837,7 +845,9 @@ async def upload_products_excel(
                     continue
                 opt_name = (row.get("variant_option_name") or "").strip()
                 options = {opt_name: vval} if opt_name and vval else {}
-                vname = vval or "Default"
+                vname = (vval or "Default").strip()
+                if len(vname) > VARIANT_NAME_MAX_LEN:
+                    vname = vname[:VARIANT_NAME_MAX_LEN].rstrip()
                 price = Decimal(row["price"]) if row.get("price") is not None else (product.price if variant_count == 0 else None)
                 qty = row.get("initial_quantity") or 0
                 is_first = variant_count == 0
@@ -846,12 +856,20 @@ async def upload_products_excel(
                     v_barcode = product.barcode
                     is_default = True
                 else:
-                    v_sku = f"{product.sku}-{_variant_slug(vname)}"
+                    suffix_max = VARIANT_SKU_MAX_LEN - len(product.sku) - 1  # for "-"
+                    slug_suffix = _variant_slug(vname, max_len=max(suffix_max, 10))
+                    v_sku = f"{product.sku}-{slug_suffix}"
+                    if len(v_sku) > VARIANT_SKU_MAX_LEN:
+                        v_sku = v_sku[:VARIANT_SKU_MAX_LEN].rstrip("-")
                     v_barcode = f"SPCV{product.id:06d}{variant_count + 1:03d}"
                     is_default = False
                 existing_sku = await db.execute(select(ProductVariant).where(ProductVariant.sku == v_sku))
                 if existing_sku.scalar_one_or_none():
-                    v_sku = f"{product.sku}-{_variant_slug(vname)}-{variant_count}"
+                    suffix_max = VARIANT_SKU_MAX_LEN - len(product.sku) - 2 - len(str(variant_count))  # "-" and "-N"
+                    slug_suffix = _variant_slug(vname, max_len=max(suffix_max, 5))
+                    v_sku = f"{product.sku}-{slug_suffix}-{variant_count}"
+                    if len(v_sku) > VARIANT_SKU_MAX_LEN:
+                        v_sku = v_sku[:VARIANT_SKU_MAX_LEN].rstrip("-")
                 variant = ProductVariant(
                     product_id=product.id,
                     name=vname,
