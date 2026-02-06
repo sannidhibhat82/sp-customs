@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   Upload,
   Loader2,
+  Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,7 @@ export default function NewProductPage() {
     is_active: true,
     is_featured: false,
     is_new: true,
+    visibility: 'visible',
   });
   const [attributes, setAttributes] = useState<{ key: string; value: string }[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
@@ -154,6 +156,7 @@ export default function NewProductPage() {
       is_active: formData.is_active,
       is_featured: formData.is_featured,
       is_new: formData.is_new,
+      visibility: formData.visibility,
       attributes: attributesObj,
       features: features,
     });
@@ -363,9 +366,15 @@ export default function NewProductPage() {
               </Card>
             </div>
 
-            {/* Status */}
+            {/* Status & Visibility */}
             <Card>
-              <CardContent className="pt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Eye className="w-4 h-4" />
+                  Status & Visibility
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="flex items-center gap-6 flex-wrap">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })} className="w-4 h-4 rounded" />
@@ -379,6 +388,24 @@ export default function NewProductPage() {
                     <input type="checkbox" checked={formData.is_new} onChange={(e) => setFormData({ ...formData, is_new: e.target.checked })} className="w-4 h-4 rounded" />
                     <span>New Arrival</span>
                   </label>
+                </div>
+
+                {/* Visibility Dropdown */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Visibility</label>
+                  <select
+                    value={formData.visibility}
+                    onChange={(e) => setFormData({ ...formData, visibility: e.target.value })}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  >
+                    <option value="visible">Visible - Show everywhere</option>
+                    <option value="hidden">Hidden - Active but not shown to users (admin only)</option>
+                    <option value="catalog_only">Catalog Only - Show in catalog, not homepage</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formData.visibility === 'hidden' && "Product is active but won't appear on public pages. Still visible in admin, orders, and inventory."}
+                    {formData.visibility === 'catalog_only' && "Product appears in catalog/category pages but not on homepage or featured sections."}
+                  </p>
                 </div>
               </CardContent>
             </Card>
