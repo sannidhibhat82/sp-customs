@@ -549,7 +549,7 @@ async def delete_variant_option(
 async def update_variant_inventory(
     variant_id: int,
     quantity: int = Query(..., ge=0),
-    adjustment_type: str = Query("set", regex="^(set|add|remove)$"),
+    adjustment_type: str = Query("set", pattern="^(set|add|remove)$"),
     reason: Optional[str] = Query(None, description="Reason for adjustment"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user)

@@ -3,7 +3,7 @@ Products API - Full product management with dynamic attributes.
 """
 from typing import List, Optional
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_, String
 from sqlalchemy.orm import selectinload
@@ -14,6 +14,7 @@ from app.models.product import Product, ProductImage
 from app.models.category import Category
 from app.models.brand import Brand
 from app.models.inventory import Inventory
+from app.models.variant import ProductVariant, VariantInventory
 from app.schemas.product import (
     ProductCreate, ProductUpdate, ProductResponse, ProductListResponse,
     CategoryInfo, BrandInfo, ProductImageResponse, InventoryInfo
@@ -22,6 +23,7 @@ from app.schemas.common import PaginatedResponse
 from app.services.auth import get_admin_user, get_current_user
 from app.services.event_service import EventService
 from app.services.barcode_generator import BarcodeGenerator
+from app.services.excel_import import parse_inventory_excel
 from app.models.user import User
 
 router = APIRouter()
@@ -54,8 +56,8 @@ async def list_products(
     tags: Optional[str] = None,  # Comma-separated tags for filtering
     visibility: Optional[str] = None,  # Filter by visibility (admin use)
     include_hidden: bool = Query(False, description="Include hidden products (admin only)"),
-    sort_by: str = Query("created_at", regex="^(created_at|name|price|sort_order)$"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    sort_by: str = Query("created_at", pattern="^(created_at|name|price|sort_order)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db)
 ):
     """List products with pagination and filters.
@@ -68,6 +70,7 @@ async def list_products(
         selectinload(Product.brand),
         selectinload(Product.images),
         selectinload(Product.inventory),
+        selectinload(Product.variants).selectinload(ProductVariant.inventory),
     )
     
     # Filters
@@ -172,8 +175,22 @@ async def list_products(
         if not primary_image and p.images:
             primary_image = p.images[0].image_data
         
+        # For products with variants, inventory is on variants; use sum of variant stock for list
         inventory_qty = p.inventory.quantity if p.inventory else 0
-        
+        if p.variants and inventory_qty == 0:
+            inventory_qty = sum((vi.quantity or 0) for v in p.variants for vi in [v.inventory] if vi)
+        # For products with variants, product.price may be None; use default/first variant price for list display
+        display_price = p.price
+        if display_price is None and p.variants:
+            default_v = next((v for v in p.variants if v.is_default), None) or (p.variants[0] if p.variants else None)
+            if default_v and default_v.price is not None:
+                display_price = default_v.price
+        display_compare = p.compare_at_price
+        if display_compare is None and p.variants and display_price is not None:
+            default_v = next((v for v in p.variants if v.is_default), None) or (p.variants[0] if p.variants else None)
+            if default_v and default_v.compare_at_price is not None:
+                display_compare = default_v.compare_at_price
+
         items.append(ProductListResponse(
             id=p.id,
             uuid=p.uuid,
@@ -181,8 +198,8 @@ async def list_products(
             slug=p.slug,
             short_description=p.short_description,
             sku=p.sku,
-            price=p.price,
-            compare_at_price=p.compare_at_price,
+            price=display_price,
+            compare_at_price=display_compare,
             category=CategoryInfo.model_validate(p.category) if p.category else None,
             brand=BrandInfo.model_validate(p.brand) if p.brand else None,
             primary_image=primary_image,
@@ -719,4 +736,138 @@ async def delete_product(
     await db.commit()
     
     return {"message": "Product deleted successfully"}
+
+
+def _variant_slug(name: str) -> str:
+    """URL-friendly slug for variant name (used in SKU suffix)."""
+    s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    return s or "var"
+
+
+@router.post("/upload-excel")
+async def upload_products_excel(
+    file: UploadFile = File(..., description="Excel file (original inventory format: Sl no, PRODUCT NAME, QUNTITY, VARIENTS, PRICE, FEATURES, DISCRIPTION, Category)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """
+    Upload an Excel file to create products and variants (temporary bulk import).
+    Accepts the original inventory format; file is not stored permanently.
+    """
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+    try:
+        groups = parse_inventory_excel(content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid Excel format: {str(e)}")
+    if not groups:
+        return {"created": 0, "products": [], "message": "No valid product rows found"}
+
+    # Load existing categories by name (case-insensitive)
+    cat_result = await db.execute(select(Category.id, Category.name))
+    category_by_name = {row[1].lower(): row[0] for row in cat_result.fetchall()}
+    cat_slugs_result = await db.execute(select(Category.slug))
+    existing_cat_slugs = [r[0] for r in cat_slugs_result.fetchall()]
+    product_slugs_result = await db.execute(select(Product.slug))
+    existing_product_slugs = [r[0] for r in product_slugs_result.fetchall()]
+
+    created_products = []
+    for group in groups:
+        cat_name = group["category"]
+        cat_name_lower = cat_name.lower()
+        if cat_name_lower not in category_by_name:
+            slug = re.sub(r"[^\w\s-]", "", cat_name.lower())
+            slug = re.sub(r"[-\s]+", "-", slug).strip("-") or "category"
+            n = 1
+            while slug in existing_cat_slugs:
+                slug = f"{slug}-{n}"
+                n += 1
+            existing_cat_slugs.append(slug)
+            new_cat = Category(
+                name=cat_name,
+                slug=slug,
+                description=f"{cat_name} category",
+                is_active=True,
+                is_featured=False,
+            )
+            db.add(new_cat)
+            await db.flush()
+            category_by_name[cat_name_lower] = new_cat.id
+        category_id = category_by_name[cat_name_lower]
+
+        first = group["rows"][0]
+        has_variants = any(r.get("variant_value") for r in group["rows"])
+        base_price = None if has_variants else (Decimal(first["price"]) if first.get("price") is not None else None)
+        initial_qty = 0 if has_variants else (first.get("initial_quantity") or 0)
+
+        slug = generate_slug(group["product_name"], existing_product_slugs)
+        existing_product_slugs.append(slug)
+        product = Product(
+            name=group["product_name"],
+            slug=slug,
+            description=group.get("description") or None,
+            short_description=group.get("short_description") or None,
+            price=base_price,
+            category_id=category_id,
+            brand_id=None,
+            features=group.get("features") or [],
+            is_active=True,
+            is_featured=False,
+            is_new=True,
+            sku="TEMP",
+        )
+        db.add(product)
+        await db.flush()
+        codes = BarcodeGenerator.generate_product_codes(product.id, product.name)
+        product.sku = codes["sku"]
+        product.barcode = codes["barcode"]
+        product.barcode_data = codes["barcode_data"]
+        product.qr_code_data = codes["qr_code_data"]
+        db.add(Inventory(product_id=product.id, quantity=initial_qty))
+        await EventService.log_product_created(db=db, product_id=product.id, product_uuid=product.uuid, product_data={"name": product.name, "sku": product.sku}, user_id=current_user.id)
+
+        variant_count = 0
+        if has_variants:
+            for row in group["rows"]:
+                vval = (row.get("variant_value") or "").strip()
+                if not vval:
+                    continue
+                opt_name = (row.get("variant_option_name") or "").strip()
+                options = {opt_name: vval} if opt_name and vval else {}
+                vname = vval or "Default"
+                price = Decimal(row["price"]) if row.get("price") is not None else (product.price if variant_count == 0 else None)
+                qty = row.get("initial_quantity") or 0
+                is_first = variant_count == 0
+                if is_first:
+                    v_sku = product.sku
+                    v_barcode = product.barcode
+                    is_default = True
+                else:
+                    v_sku = f"{product.sku}-{_variant_slug(vname)}"
+                    v_barcode = f"SPCV{product.id:06d}{variant_count + 1:03d}"
+                    is_default = False
+                existing_sku = await db.execute(select(ProductVariant).where(ProductVariant.sku == v_sku))
+                if existing_sku.scalar_one_or_none():
+                    v_sku = f"{product.sku}-{_variant_slug(vname)}-{variant_count}"
+                variant = ProductVariant(
+                    product_id=product.id,
+                    name=vname,
+                    sku=v_sku,
+                    barcode=v_barcode,
+                    options=options,
+                    price=price,
+                    is_active=True,
+                    is_default=is_default,
+                    sort_order=variant_count,
+                )
+                db.add(variant)
+                await db.flush()
+                db.add(VariantInventory(variant_id=variant.id, quantity=qty))
+                variant_count += 1
+        created_products.append({"id": product.id, "name": product.name, "variants": variant_count})
+    await db.commit()
+    return {"created": len(created_products), "products": created_products}
 
