@@ -125,6 +125,21 @@ export function VariantManager({ productId, productName, productSku, productPric
     queryFn: () => api.getProductVariants(productId),
   });
 
+  // Fetch global variant option templates (so custom options appear for all products)
+  const { data: apiVariantOptions = [], refetch: refetchVariantOptions } = useQuery({
+    queryKey: ['variant-options'],
+    queryFn: () => api.getVariantOptions(),
+  });
+
+  // Merge preset options with API options (presets first, then API; dedupe by name)
+  const presetNames = new Set(PRESET_OPTIONS.map((o) => o.name));
+  const allOptionTypes = [
+    ...PRESET_OPTIONS,
+    ...apiVariantOptions
+      .filter((o: { name: string }) => !presetNames.has(o.name))
+      .map((o: { name: string; values?: string[] }) => ({ name: o.name, values: o.values || [] })),
+  ];
+
   // Create variant mutation
   const createMutation = useMutation({
     mutationFn: (data: any) => api.createVariant(productId, data),
@@ -258,6 +273,22 @@ export function VariantManager({ productId, productName, productSku, productPric
     setCustomOptionValue('');
   };
 
+  // Save custom option to backend so it appears in dropdown for other products
+  const createVariantOptionMutation = useMutation({
+    mutationFn: (data: { name: string; values: string[] }) => api.createVariantOption(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['variant-options'] });
+      refetchVariantOptions();
+    },
+  });
+  const updateVariantOptionMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { values: string[] } }) => api.updateVariantOption(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['variant-options'] });
+      refetchVariantOptions();
+    },
+  });
+
   const handleAddOption = (optionName: string, optionValue: string) => {
     if (!optionName || !optionValue) return;
     
@@ -280,6 +311,28 @@ export function VariantManager({ productId, productName, productSku, productPric
     
     setSelectedOptionType('');
     setCustomOptionValue('');
+  };
+
+  const handleAddCustomOptionAndSave = async () => {
+    if (!customOptionName?.trim() || !customOptionValue?.trim()) return;
+    const name = customOptionName.trim();
+    const value = customOptionValue.trim();
+    try {
+      const existing = apiVariantOptions.find((o: { name: string }) => o.name.toLowerCase() === name.toLowerCase());
+      if (existing) {
+        const newValues = [...(existing.values || []), value].filter((v, i, a) => a.indexOf(v) === i);
+        await updateVariantOptionMutation.mutateAsync({ id: existing.id, data: { values: newValues } });
+      } else {
+        await createVariantOptionMutation.mutateAsync({ name, values: [value] });
+      }
+      handleAddOption(name, value);
+      setCustomOptionName('');
+      setCustomOptionValue('');
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      const msg = Array.isArray(detail) ? detail.map((d: any) => d.msg || d).join(', ') : (typeof detail === 'string' ? detail : 'Failed to save option');
+      toast({ title: 'Could not save custom option', description: msg, variant: 'destructive' });
+    }
   };
 
   const handleRemoveOption = (optionName: string) => {
@@ -864,17 +917,17 @@ export function VariantManager({ productId, productName, productSku, productPric
                   className="flex-1 h-10 px-3 bg-background border border-border rounded-lg"
                 >
                   <option value="">Select option type...</option>
-                  {PRESET_OPTIONS.map(opt => (
+                  {allOptionTypes.map((opt: { name: string }) => (
                     <option key={opt.name} value={opt.name}>{opt.name}</option>
                   ))}
                   <option value="custom">+ Custom Option</option>
                 </select>
               </div>
 
-              {/* Preset Values */}
+              {/* Values for selected option type (preset or saved custom) */}
               {selectedOptionType && selectedOptionType !== 'custom' && (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {PRESET_OPTIONS.find(o => o.name === selectedOptionType)?.values.map(val => (
+                  {allOptionTypes.find((o: { name: string }) => o.name === selectedOptionType)?.values.map((val: string) => (
                     <Button
                       key={val}
                       variant="outline"
@@ -888,7 +941,7 @@ export function VariantManager({ productId, productName, productSku, productPric
                 </div>
               )}
 
-              {/* Custom Option */}
+              {/* Custom Option (saved to backend so it appears for other products) */}
               {selectedOptionType === 'custom' && (
                 <div className="mt-2 flex gap-2">
                   <Input
@@ -902,13 +955,10 @@ export function VariantManager({ productId, productName, productSku, productPric
                     onChange={(e) => setCustomOptionValue(e.target.value)}
                   />
                   <Button
-                    onClick={() => {
-                      handleAddOption(customOptionName, customOptionValue);
-                      setCustomOptionName('');
-                    }}
-                    disabled={!customOptionName || !customOptionValue}
+                    onClick={handleAddCustomOptionAndSave}
+                    disabled={!customOptionName?.trim() || !customOptionValue?.trim() || createVariantOptionMutation.isPending || updateVariantOptionMutation.isPending}
                   >
-                    Add
+                    Add & save for all products
                   </Button>
                 </div>
               )}

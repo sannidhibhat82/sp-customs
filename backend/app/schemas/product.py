@@ -46,6 +46,7 @@ class ProductBase(BaseModel):
     attributes: Dict[str, Any] = {}
     specifications: Dict[str, Any] = {}
     features: List[str] = []
+    badges: Dict[str, Any] = {}  # warranty (str), fast_delivery, expert_installation, quality_assured (bool)
     tags: List[str] = []  # Tags for search (e.g., ["bmw", "shift", "racing"])
     is_active: bool = True
     is_featured: bool = False
@@ -73,6 +74,7 @@ class ProductUpdate(BaseModel):
     attributes: Optional[Dict[str, Any]] = None
     specifications: Optional[Dict[str, Any]] = None
     features: Optional[List[str]] = None
+    badges: Optional[Dict[str, Any]] = None
     tags: Optional[List[str]] = None  # Tags for search
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
@@ -133,6 +135,7 @@ class ProductResponse(BaseModel):
     attributes: Dict[str, Any] = {}
     specifications: Dict[str, Any] = {}
     features: List[str] = []
+    badges: Dict[str, Any] = {}
     tags: List[str] = []  # Tags for search
     category_id: Optional[int] = None
     brand_id: Optional[int] = None

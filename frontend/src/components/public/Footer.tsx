@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -15,6 +16,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PHONE_DISPLAY, getPhoneUrl } from '@/lib/utils';
+import { api } from '@/lib/api';
+import { toast } from '@/components/ui/use-toast';
 
 const footerLinks = {
   products: [
@@ -38,6 +41,29 @@ const footerLinks = {
 };
 
 export default function Footer() {
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
+
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newsletterEmail?.trim()) return;
+    setNewsletterLoading(true);
+    try {
+      await api.subscribeNewsletter({ email: newsletterEmail.trim() });
+      toast({ title: 'Subscribed successfully!', variant: 'success' });
+      setNewsletterEmail('');
+    } catch (error: any) {
+      const detail = error.response?.data?.detail;
+      let message = 'Failed to subscribe';
+      if (typeof detail === 'string') message = detail;
+      else if (Array.isArray(detail) && detail.length > 0) message = detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('. ');
+      else if (error.message) message = error.message;
+      toast({ title: message, variant: 'destructive' });
+    } finally {
+      setNewsletterLoading(false);
+    }
+  };
+
   return (
     <footer className="relative bg-gradient-to-b from-background to-background/95 border-t border-border">
       {/* Decorative Elements */}
@@ -56,17 +82,21 @@ export default function Footer() {
                 Get notified about new products and exclusive offers.
               </p>
             </div>
-            <div className="flex w-full max-w-md gap-2">
+            <form onSubmit={handleNewsletterSubmit} className="flex w-full max-w-md gap-2">
               <Input
                 type="email"
                 placeholder="Enter your email"
                 className="flex-1"
+                value={newsletterEmail}
+                onChange={(e) => setNewsletterEmail(e.target.value)}
+                disabled={newsletterLoading}
+                required
               />
-              <Button>
-                Subscribe
+              <Button type="submit" disabled={newsletterLoading}>
+                {newsletterLoading ? '...' : 'Subscribe'}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
-            </div>
+            </form>
           </div>
         </div>
 

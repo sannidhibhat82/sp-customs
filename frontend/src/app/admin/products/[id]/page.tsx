@@ -63,6 +63,7 @@ export default function ProductDetailPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
   const [newFeature, setNewFeature] = useState('');
+  const [badges, setBadges] = useState<{ warranty?: string; fast_delivery?: boolean; expert_installation?: boolean; quality_assured?: boolean }>({});
   const [showMobileQR, setShowMobileQR] = useState(false);
   const [copied, setCopied] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -129,6 +130,14 @@ export default function ProductDetailPage() {
       
       if (product.tags) {
         setTags(product.tags);
+      }
+      if (product.badges && typeof product.badges === 'object') {
+        setBadges({
+          warranty: product.badges.warranty ?? '',
+          fast_delivery: product.badges.fast_delivery !== false,
+          expert_installation: product.badges.expert_installation !== false,
+          quality_assured: product.badges.quality_assured !== false,
+        });
       }
     }
   }, [product]);
@@ -227,6 +236,12 @@ export default function ProductDetailPage() {
       visibility: formData.visibility,
       attributes: attributesObj,
       features: features,
+      badges: {
+        ...(badges.warranty?.trim() ? { warranty: badges.warranty.trim() } : {}),
+        fast_delivery: !!badges.fast_delivery,
+        expert_installation: !!badges.expert_installation,
+        quality_assured: !!badges.quality_assured,
+      },
       tags: tags,
     });
   };
@@ -441,6 +456,52 @@ export default function ProductDetailPage() {
                     <label className="text-sm font-medium mb-2 block">Cost (₹)</label>
                     <Input type="number" step="0.01" value={formData.cost_price} onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })} />
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Product badges (Warranty, Fast Delivery, etc.) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Product badges (shown on product page)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Warranty</label>
+                  <Input
+                    placeholder="e.g. 1 Year Warranty, No warranty, or leave blank to hide"
+                    value={badges.warranty ?? ''}
+                    onChange={(e) => setBadges((b) => ({ ...b, warranty: e.target.value }))}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={badges.fast_delivery !== false}
+                      onChange={(e) => setBadges((b) => ({ ...b, fast_delivery: e.target.checked }))}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm">Fast Delivery</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={badges.expert_installation !== false}
+                      onChange={(e) => setBadges((b) => ({ ...b, expert_installation: e.target.checked }))}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm">Expert Installation</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={badges.quality_assured !== false}
+                      onChange={(e) => setBadges((b) => ({ ...b, quality_assured: e.target.checked }))}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm">Quality Assured</span>
+                  </label>
                 </div>
               </CardContent>
             </Card>

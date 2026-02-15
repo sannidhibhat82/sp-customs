@@ -583,18 +583,20 @@ export default function HomePage() {
 
   const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newsletterEmail) return;
+    if (!newsletterEmail?.trim()) return;
     
     setNewsletterLoading(true);
     try {
-      await api.subscribeNewsletter({ email: newsletterEmail });
+      await api.subscribeNewsletter({ email: newsletterEmail.trim() });
       toast({ title: 'Subscribed successfully!', variant: 'success' });
       setNewsletterEmail('');
     } catch (error: any) {
-      toast({ 
-        title: error.response?.data?.detail || 'Failed to subscribe', 
-        variant: 'destructive' 
-      });
+      const detail = error.response?.data?.detail;
+      let message = 'Failed to subscribe';
+      if (typeof detail === 'string') message = detail;
+      else if (Array.isArray(detail) && detail.length > 0) message = detail.map((d: { msg?: string }) => d.msg || JSON.stringify(d)).join('. ');
+      else if (error.message) message = error.message;
+      toast({ title: message, variant: 'destructive' });
     } finally {
       setNewsletterLoading(false);
     }

@@ -551,22 +551,35 @@ Can you provide more details about this product?`
               </a>
             </div>
 
-            {/* Features */}
-            <div className="grid grid-cols-2 gap-4 pt-6 border-t border-border">
-              {[
+            {/* Product badges (customisable per product) */}
+            {(() => {
+              const b = (product as any).badges || {};
+              const defaultBadges = [
+                ...(b.warranty ? [{ icon: Shield, label: typeof b.warranty === 'string' ? b.warranty : 'Warranty Included' }] : []),
+                ...(b.fast_delivery !== false ? [{ icon: Truck, label: 'Fast Delivery' }] : []),
+                ...(b.expert_installation !== false ? [{ icon: Zap, label: 'Expert Installation' }] : []),
+                ...(b.quality_assured !== false ? [{ icon: Check, label: 'Quality Assured' }] : []),
+              ];
+              const items = defaultBadges.length > 0 ? defaultBadges : [
                 { icon: Shield, label: 'Warranty Included' },
                 { icon: Truck, label: 'Fast Delivery' },
                 { icon: Zap, label: 'Expert Installation' },
                 { icon: Check, label: 'Quality Assured' },
-              ].map((feature) => (
-                <div key={feature.label} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <feature.icon className="w-5 h-5 text-primary" />
-                  </div>
-                  <span className="text-sm font-medium">{feature.label}</span>
+              ];
+              if (items.length === 0) return null;
+              return (
+                <div className="grid grid-cols-2 gap-4 pt-6 border-t border-border">
+                  {items.map((feature) => (
+                    <div key={feature.label} className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <feature.icon className="w-5 h-5 text-primary" />
+                      </div>
+                      <span className="text-sm font-medium">{feature.label}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
 
             {/* Description */}
             {product.description && (

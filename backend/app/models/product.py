@@ -39,6 +39,8 @@ class Product(Base):
     # Specifications and features
     specifications = Column(JSONB, default=dict, nullable=False)
     features = Column(JSONB, default=list, nullable=False)
+    # Per-product badges: warranty (string e.g. "1 Year"), fast_delivery, expert_installation, quality_assured (booleans)
+    badges = Column(JSONB, default=dict, nullable=False)
     
     # Relationships
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
