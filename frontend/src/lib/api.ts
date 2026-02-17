@@ -162,6 +162,11 @@ class ApiClient {
     return response.data;
   }
 
+  async getProductBySlug(slug: string) {
+    const response = await this.client.get(`/products/by-slug/${encodeURIComponent(slug)}`);
+    return response.data;
+  }
+
   async getProduct(id: number) {
     const response = await this.client.get(`/products/${id}`);
     return response.data;

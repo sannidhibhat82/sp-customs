@@ -386,27 +386,8 @@ async def get_product_by_barcode(
     }
 
 
-@router.get("/{product_id}", response_model=ProductResponse)
-async def get_product(
-    product_id: int,
-    db: AsyncSession = Depends(get_db)
-):
-    """Get a specific product with all details."""
-    result = await db.execute(
-        select(Product)
-        .options(
-            selectinload(Product.category),
-            selectinload(Product.brand),
-            selectinload(Product.images),
-            selectinload(Product.inventory),
-        )
-        .where(Product.id == product_id)
-    )
-    product = result.scalar_one_or_none()
-    
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    
+def _product_to_response(product: Product) -> ProductResponse:
+    """Build ProductResponse from a loaded Product (with category, brand, images, inventory)."""
     return ProductResponse(
         id=product.id,
         uuid=product.uuid,
@@ -449,6 +430,54 @@ async def get_product(
         created_at=product.created_at,
         updated_at=product.updated_at,
     )
+
+
+@router.get("/by-slug/{slug}", response_model=ProductResponse)
+async def get_product_by_slug(
+    slug: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get a product by slug (for public detail pages). Only returns active, non-hidden products."""
+    result = await db.execute(
+        select(Product)
+        .options(
+            selectinload(Product.category),
+            selectinload(Product.brand),
+            selectinload(Product.images),
+            selectinload(Product.inventory),
+        )
+        .where(Product.slug == slug)
+        .where(Product.is_active == True)
+        .where(Product.visibility != "hidden")
+    )
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return _product_to_response(product)
+
+
+@router.get("/{product_id}", response_model=ProductResponse)
+async def get_product(
+    product_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get a specific product with all details."""
+    result = await db.execute(
+        select(Product)
+        .options(
+            selectinload(Product.category),
+            selectinload(Product.brand),
+            selectinload(Product.images),
+            selectinload(Product.inventory),
+        )
+        .where(Product.id == product_id)
+    )
+    product = result.scalar_one_or_none()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    return _product_to_response(product)
 
 
 @router.post("", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)

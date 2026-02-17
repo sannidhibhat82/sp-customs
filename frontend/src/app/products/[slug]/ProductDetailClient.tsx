@@ -86,21 +86,14 @@ export default function ProductDetailClient({ slug }: ProductDetailClientProps) 
   const [selectedVariant, setSelectedVariant] = useState<any>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
-  // Try to get product by ID or slug
+  // Try to get product by ID or slug (by-slug works for all products including older ones)
   const { data: product, isLoading, error } = useQuery({
     queryKey: ['product', slug],
     queryFn: async () => {
-      // First try as ID
       if (/^\d+$/.test(slug)) {
         return api.getProduct(parseInt(slug));
       }
-      // Otherwise search by name/slug
-      const products = await api.getProducts({ is_active: true });
-      const found = products.items.find(
-        (p: any) => p.slug === slug || p.id.toString() === slug
-      );
-      if (found) return api.getProduct(found.id);
-      throw new Error('Product not found');
+      return api.getProductBySlug(slug);
     },
   });
 
