@@ -120,7 +120,12 @@ class VariantInventory(Base):
     
     # Relationships
     variant = relationship("ProductVariant", back_populates="inventory")
-    
+    logs = relationship(
+        "VariantInventoryLog",
+        back_populates="variant_inventory",
+        cascade="all, delete-orphan",
+    )
+
     @property
     def available_quantity(self):
         return max(0, self.quantity - self.reserved_quantity)
@@ -170,7 +175,7 @@ class VariantInventoryLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    variant_inventory = relationship("VariantInventory", backref="logs")
+    variant_inventory = relationship("VariantInventory", back_populates="logs")
     user = relationship("User", foreign_keys=[user_id])
     
     def __repr__(self):
