@@ -749,25 +749,31 @@ async def delete_product(
     current_user: User = Depends(get_admin_user)
 ):
     """Delete a product."""
+    import logging
+    logger = logging.getLogger(__name__)
     result = await db.execute(select(Product).where(Product.id == product_id))
     product = result.scalar_one_or_none()
     
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    
+    # Defensive: old rows may have NULL uuid
+    entity_uuid = str(product.uuid) if product.uuid else None
     await EventService.log_event(
         db=db,
         event_type="product_deleted",
         entity_type="product",
         entity_id=product.id,
-        entity_uuid=product.uuid,
+        entity_uuid=entity_uuid,
         data={"name": product.name, "sku": product.sku},
         user_id=current_user.id,
     )
-    
-    await db.delete(product)
-    await db.commit()
-    
+    try:
+        await db.delete(product)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.exception("Product delete failed for product_id=%s: %s", product_id, e)
+        raise
     return {"message": "Product deleted successfully"}
 
 

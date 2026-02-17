@@ -83,7 +83,16 @@ async def health_check():
 # Exception handlers
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Global exception handler."""
+    """Global exception handler. Log the real error so production logs show the cause."""
+    import logging
+    import traceback
+    logger = logging.getLogger(__name__)
+    logger.error(
+        "Unhandled exception: %s\n%s",
+        exc,
+        traceback.format_exc(),
+        exc_info=True,
+    )
     return JSONResponse(
         status_code=500,
         content={
