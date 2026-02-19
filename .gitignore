@@ -43,6 +43,11 @@ backend/.env
 frontend/.env.local
 
 # =====================
+# Backups (DB dumps)
+backups/
+*.dump
+
+# =====================
 # Build Outputs
 # =====================
 
