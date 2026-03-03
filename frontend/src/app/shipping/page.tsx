@@ -2,25 +2,10 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Truck, Clock, MapPin, Package, CheckCircle, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Truck, ArrowLeft } from 'lucide-react';
 import { Header, Footer } from '@/components/public';
 
-const deliveryZones = [
-  { zone: 'Metro Cities', cities: 'Delhi, Mumbai, Bangalore, Chennai, Kolkata, Hyderabad', time: '2-3 Business Days' },
-  { zone: 'Tier 1 Cities', cities: 'Pune, Ahmedabad, Jaipur, Lucknow, etc.', time: '3-5 Business Days' },
-  { zone: 'Tier 2 Cities', cities: 'Smaller cities and towns', time: '5-7 Business Days' },
-  { zone: 'Remote Areas', cities: 'Rural and remote locations', time: '7-10 Business Days' },
-];
-
-const features = [
-  { icon: Truck, title: 'Free Shipping', desc: 'On orders above ₹2000' },
-  { icon: Package, title: 'Secure Packaging', desc: 'Products safely packed' },
-  { icon: Clock, title: 'Real-time Tracking', desc: 'Track your shipment' },
-  { icon: MapPin, title: 'Pan India Delivery', desc: 'We deliver everywhere' },
-];
-
-export default function ShippingPage() {
+export default function ShippingPolicyPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -38,167 +23,107 @@ export default function ShippingPage() {
               Shipping <span className="text-primary">Policy</span>
             </h1>
             <p className="text-lg text-muted-foreground">
-              Last updated: March 2025. Fast and reliable delivery across India. Track your orders in real-time.
+              Last updated: March 2025
             </p>
           </motion.div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-12 border-b border-border">
-        <div className="container-wide">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, i) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                viewport={{ once: true }}
-                className="flex items-center gap-4 p-4 bg-card rounded-xl border border-border"
-              >
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <feature.icon className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground">{feature.desc}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Shipping Rates */}
+      {/* Content */}
       <section className="py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold mb-8 text-center">Shipping Rates</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="bg-card rounded-2xl border border-border p-8"
-            >
-              <h3 className="text-xl font-bold mb-4 text-primary">Standard Shipping</h3>
-              <ul className="space-y-4">
-                <li className="flex justify-between items-center pb-4 border-b border-border">
-                  <span>Orders above ₹2000</span>
-                  <span className="font-bold text-green-500">FREE</span>
-                </li>
-                <li className="flex justify-between items-center pb-4 border-b border-border">
-                  <span>Orders ₹1000 - ₹2000</span>
-                  <span className="font-bold">₹49</span>
-                </li>
-                <li className="flex justify-between items-center">
-                  <span>Orders below ₹1000</span>
-                  <span className="font-bold">₹99</span>
-                </li>
-              </ul>
-            </motion.div>
+          <div className="prose prose-lg dark:prose-invert max-w-none">
+            <div className="bg-card rounded-2xl border border-border p-8 mb-8">
+              <h2 className="text-2xl font-bold mb-4">Overview</h2>
+              <p className="text-muted-foreground">
+                This Shipping Policy describes how SP Customs (“we”, “us”, “our”) delivers products ordered through our website. By placing an order, you agree to the terms set out below. We deliver across India and aim to process and ship orders in a timely manner.
+              </p>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/20 p-8"
-            >
-              <h3 className="text-xl font-bold mb-4 text-primary">Express Shipping</h3>
-              <ul className="space-y-4">
-                <li className="flex justify-between items-center pb-4 border-b border-border">
-                  <span>Metro Cities (1-2 days)</span>
-                  <span className="font-bold">₹149</span>
-                </li>
-                <li className="flex justify-between items-center pb-4 border-b border-border">
-                  <span>Tier 1 Cities (2-3 days)</span>
-                  <span className="font-bold">₹199</span>
-                </li>
-                <li className="flex justify-between items-center">
-                  <span>Other Locations</span>
-                  <span className="font-bold">₹249</span>
-                </li>
-              </ul>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Delivery Times */}
-      <section className="py-16 bg-secondary/20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold mb-8 text-center">Estimated Delivery Times</h2>
-          <div className="bg-card rounded-2xl border border-border overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-secondary/50">
-                <tr>
-                  <th className="px-6 py-4 text-left font-semibold">Zone</th>
-                  <th className="px-6 py-4 text-left font-semibold hidden sm:table-cell">Coverage</th>
-                  <th className="px-6 py-4 text-left font-semibold">Delivery Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {deliveryZones.map((zone, i) => (
-                  <tr key={zone.zone} className={i % 2 === 0 ? 'bg-background' : 'bg-secondary/20'}>
-                    <td className="px-6 py-4 font-medium">{zone.zone}</td>
-                    <td className="px-6 py-4 text-muted-foreground hidden sm:table-cell">{zone.cities}</td>
-                    <td className="px-6 py-4 text-primary font-medium">{zone.time}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* Order Process */}
-      <section className="py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold mb-8 text-center">Order Process</h2>
-          <div className="grid sm:grid-cols-4 gap-6">
-            {[
-              { step: 1, title: 'Order Placed', desc: 'Confirmation email sent' },
-              { step: 2, title: 'Processing', desc: 'Order packed & ready' },
-              { step: 3, title: 'Shipped', desc: 'Tracking number shared' },
-              { step: 4, title: 'Delivered', desc: 'At your doorstep' },
-            ].map((item, i) => (
-              <motion.div
-                key={item.step}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                viewport={{ once: true }}
-                className="text-center"
-              >
-                <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg mx-auto mb-4">
-                  {item.step}
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-xl font-bold mb-4">1. Delivery Areas</h2>
+                <div className="text-muted-foreground space-y-4">
+                  <p>
+                    We ship to addresses within India. Delivery timeframes vary by location (e.g. metro cities, tier 1 and tier 2 cities, and remote areas). We are not responsible for delays caused by the shipping carrier, customs, or circumstances outside our control.
+                  </p>
                 </div>
-                <h3 className="font-semibold mb-1">{item.title}</h3>
-                <p className="text-sm text-muted-foreground">{item.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+              </div>
 
-      {/* CTA */}
-      <section className="py-16 bg-secondary/20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl font-bold mb-4">Have Questions About Shipping?</h2>
-          <p className="text-muted-foreground mb-8">
-            For any shipping-related queries, contact us at <a href="mailto:contact@spcustoms.com" className="text-primary hover:underline">contact@spcustoms.com</a> or via the contact page.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/faq">
-              <Button size="lg">
-                View FAQ
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
-            <Link href="/contact">
-              <Button size="lg" variant="outline">
-                Contact Us
-              </Button>
+              <div>
+                <h2 className="text-xl font-bold mb-4">2. Order Processing</h2>
+                <div className="text-muted-foreground space-y-4">
+                  <p>
+                    Orders are processed on business days. Once your order is confirmed and payment is received, we will pack and hand over the shipment to our logistics partner. You will receive order and tracking details (where applicable) via email or phone.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold mb-4">3. Shipping Costs</h2>
+                <div className="text-muted-foreground space-y-4">
+                  <p>
+                    Shipping charges, if any, will be shown at checkout before you complete payment. We may offer free or discounted shipping on certain orders as per our promotions. Shipping costs are non-refundable except where required by law or as stated in our Refund Policy.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold mb-4">4. Delivery Timeframes</h2>
+                <div className="text-muted-foreground space-y-4">
+                  <p>
+                    Estimated delivery times are indicative only and not guaranteed. Factors such as location, carrier capacity, and weather may affect delivery. We will make reasonable efforts to meet stated estimates but are not liable for delays beyond our control.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold mb-4">5. Tracking and Responsibility</h2>
+                <div className="text-muted-foreground space-y-4">
+                  <p>
+                    Where tracking is available, we will share the tracking information with you. Risk of loss and title for the goods pass to you upon delivery to the address you provided. It is your responsibility to ensure someone is available to receive the delivery where required.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold mb-4">6. Incorrect or Incomplete Address</h2>
+                <div className="text-muted-foreground space-y-4">
+                  <p>
+                    You are responsible for providing an accurate and complete shipping address. We are not liable for failed or delayed delivery due to incorrect or incomplete address details. Additional charges may apply for re-shipment if a delivery fails for this reason.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold mb-4">7. Changes to This Policy</h2>
+                <div className="text-muted-foreground space-y-4">
+                  <p>
+                    We may update this Shipping Policy from time to time. The current version will be posted on this page with an updated “Last updated” date. Your continued use of our site or services after changes constitutes acceptance of the revised policy.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold mb-4">8. Contact Us</h2>
+                <div className="text-muted-foreground space-y-4">
+                  <p>
+                    For questions about shipping or this policy, contact us at:
+                  </p>
+                  <ul className="list-none mt-4 space-y-2">
+                    <li><strong>Email:</strong> contact@spcustoms.com</li>
+                    <li><strong>Phone:</strong> Contact via WhatsApp or website</li>
+                    <li><strong>Address:</strong> 377/6, Kottara, Mangaluru, Karnataka 575006</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-12 text-center">
+            <Link href="/" className="inline-flex items-center gap-2 text-primary hover:underline">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Home
             </Link>
           </div>
         </div>
