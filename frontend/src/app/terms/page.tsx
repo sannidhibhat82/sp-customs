@@ -23,7 +23,7 @@ export default function TermsPage() {
               Terms of <span className="text-primary">Service</span>
             </h1>
             <p className="text-lg text-muted-foreground">
-              Last updated: January 2026
+              Last updated: March 2025
             </p>
           </motion.div>
         </div>
@@ -192,7 +192,7 @@ export default function TermsPage() {
                 <div className="text-muted-foreground">
                   <p>For questions about these Terms of Service, please contact us:</p>
                   <ul className="list-none mt-4 space-y-2">
-                    <li><strong>Email:</strong> legal@spcustoms.com</li>
+                    <li><strong>Email:</strong> contact@spcustoms.com</li>
                     <li><strong>Phone:</strong> Contact via WhatsApp or website</li>
                     <li><strong>Address:</strong> 377/6, Kottara, Mangaluru, Karnataka 575006</li>
                   </ul>

@@ -10,7 +10,6 @@ import {
   Send,
   Instagram,
   Facebook,
-  Youtube,
   MessageCircle,
   CheckCircle,
 } from 'lucide-react';
@@ -208,7 +207,7 @@ ${form.message}
               <h3 className="font-semibold mb-4">Follow Us</h3>
               <div className="flex items-center gap-3">
                 <a
-                  href="https://instagram.com/spcustoms"
+                  href="https://www.instagram.com/sp_customs_/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white hover:scale-110 transition-transform"
@@ -216,20 +215,12 @@ ${form.message}
                   <Instagram className="w-6 h-6" />
                 </a>
                 <a
-                  href="https://facebook.com/spcustoms"
+                  href="https://www.facebook.com/share/184sCvJotf/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white hover:scale-110 transition-transform"
                 >
                   <Facebook className="w-6 h-6" />
-                </a>
-                <a
-                  href="https://youtube.com/@spcustoms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-12 h-12 rounded-xl bg-red-600 flex items-center justify-center text-white hover:scale-110 transition-transform"
-                >
-                  <Youtube className="w-6 h-6" />
                 </a>
               </div>
             </div>

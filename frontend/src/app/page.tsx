@@ -1058,7 +1058,7 @@ export default function HomePage() {
                 {reels.map((reel: any, i: number) => (
                   <motion.a
                     key={reel.id}
-                    href={reel.instagram_url || 'https://instagram.com/sp_customs_'}
+                    href={reel.instagram_url || 'https://www.instagram.com/sp_customs_/'}
                     target="_blank"
                     rel="noopener noreferrer"
                     initial={{ opacity: 0, y: 30 }}
@@ -1114,7 +1114,7 @@ export default function HomePage() {
               </div>
 
               <div className="text-center mt-10">
-                <Link href="https://instagram.com/sp_customs_" target="_blank">
+                <Link href="https://www.instagram.com/sp_customs_/" target="_blank">
                   <Button 
                     variant="outline" 
                     size="lg" 

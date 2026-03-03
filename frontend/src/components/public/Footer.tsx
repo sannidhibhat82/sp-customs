@@ -10,7 +10,6 @@ import {
   Clock,
   Instagram,
   Facebook,
-  Youtube,
   ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,9 +33,6 @@ const footerLinks = {
   ],
   support: [
     { label: 'FAQ', href: '/faq' },
-    { label: 'Warranty', href: '/warranty' },
-    { label: 'Shipping', href: '/shipping' },
-    { label: 'Returns', href: '/returns' },
   ],
 };
 
@@ -145,7 +141,7 @@ export default function Footer() {
             {/* Social Links */}
             <div className="flex items-center gap-3 mt-6">
               <a
-                href="https://instagram.com/spcustoms"
+                href="https://www.instagram.com/sp_customs_/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-white transition-all"
@@ -153,20 +149,12 @@ export default function Footer() {
                 <Instagram className="w-5 h-5" />
               </a>
               <a
-                href="https://facebook.com/spcustoms"
+                href="https://www.facebook.com/share/184sCvJotf/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-white transition-all"
               >
                 <Facebook className="w-5 h-5" />
-              </a>
-              <a
-                href="https://youtube.com/@spcustoms"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-white transition-all"
-              >
-                <Youtube className="w-5 h-5" />
               </a>
             </div>
           </div>
@@ -224,15 +212,18 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="py-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <p>© {new Date().getFullYear()} SP Customs. All rights reserved.</p>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 flex-wrap justify-center">
+            <Link href="/shipping" className="hover:text-foreground transition-colors">
+              Shipping Policy
+            </Link>
+            <Link href="/returns" className="hover:text-foreground transition-colors">
+              Refund Policy
+            </Link>
             <Link href="/privacy" className="hover:text-foreground transition-colors">
               Privacy Policy
             </Link>
             <Link href="/terms" className="hover:text-foreground transition-colors">
               Terms of Service
-            </Link>
-            <Link href="/admin/login" className="hover:text-foreground transition-colors">
-              Admin
             </Link>
           </div>
         </div>

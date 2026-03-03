@@ -41,7 +41,7 @@ export default function ReturnsPage() {
               Returns & <span className="text-primary">Refunds</span>
             </h1>
             <p className="text-lg text-muted-foreground">
-              Easy returns within 7 days. Your satisfaction is our priority.
+              Last updated: March 2025. Easy returns within 7 days. Your satisfaction is our priority.
             </p>
           </motion.div>
         </div>
@@ -195,7 +195,9 @@ export default function ReturnsPage() {
       <section className="py-16 bg-secondary/20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-4">Need to Return Something?</h2>
-          <p className="text-muted-foreground mb-8">Contact our support team to initiate a return.</p>
+          <p className="text-muted-foreground mb-8">
+            Contact our support team at <a href="mailto:contact@spcustoms.com" className="text-primary hover:underline">contact@spcustoms.com</a> or via WhatsApp to initiate a return.
+          </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href={getWhatsAppUrl("Hi! I need to return a product.")} target="_blank">
               <Button size="lg">

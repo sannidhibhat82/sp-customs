@@ -35,10 +35,10 @@ export default function ShippingPage() {
           >
             <Truck className="w-16 h-16 text-primary mx-auto mb-6" />
             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-              Shipping <span className="text-primary">Information</span>
+              Shipping <span className="text-primary">Policy</span>
             </h1>
             <p className="text-lg text-muted-foreground">
-              Fast and reliable delivery across India. Track your orders in real-time.
+              Last updated: March 2025. Fast and reliable delivery across India. Track your orders in real-time.
             </p>
           </motion.div>
         </div>
@@ -185,7 +185,9 @@ export default function ShippingPage() {
       <section className="py-16 bg-secondary/20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-4">Have Questions About Shipping?</h2>
-          <p className="text-muted-foreground mb-8">Contact us for any shipping-related queries.</p>
+          <p className="text-muted-foreground mb-8">
+            For any shipping-related queries, contact us at <a href="mailto:contact@spcustoms.com" className="text-primary hover:underline">contact@spcustoms.com</a> or via the contact page.
+          </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/faq">
               <Button size="lg">
