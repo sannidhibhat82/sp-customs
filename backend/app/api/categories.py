@@ -38,21 +38,23 @@ async def list_categories(
     parent_id: Optional[int] = Query(None, description="Filter by parent category"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     include_count: bool = Query(True, description="Include product count"),
+    page: Optional[int] = Query(None, ge=1, description="Page number (Shiprocket catalog sync)"),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Items per page (Shiprocket catalog sync)"),
     db: AsyncSession = Depends(get_db)
 ):
-    """List all categories with optional filters."""
+    """List all categories with optional filters. Supports page/limit for Shiprocket catalog sync."""
     query = select(Category)
     
     if parent_id is not None:
         query = query.where(Category.parent_id == parent_id)
-    elif parent_id is None:
-        # By default, show root categories
-        pass
     
     if is_active is not None:
         query = query.where(Category.is_active == is_active)
     
     query = query.order_by(Category.sort_order, Category.name)
+    
+    if page is not None and limit is not None:
+        query = query.offset((page - 1) * limit).limit(limit)
     
     result = await db.execute(query)
     categories = result.scalars().all()

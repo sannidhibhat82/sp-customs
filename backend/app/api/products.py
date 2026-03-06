@@ -46,8 +46,10 @@ def generate_slug(name: str, existing_slugs: list = None) -> str:
 @router.get("", response_model=PaginatedResponse[ProductListResponse])
 async def list_products(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: Optional[int] = Query(None, ge=1, le=100),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Alias for page_size (Shiprocket catalog sync)"),
     category_id: Optional[int] = None,
+    collection_id: Optional[int] = Query(None, description="Alias for category_id (Shiprocket: collection)"),
     brand_id: Optional[int] = None,
     is_active: Optional[bool] = None,
     is_featured: Optional[bool] = None,
@@ -64,7 +66,10 @@ async def list_products(
     
     For public views (is_active=True), hidden products are automatically excluded
     unless include_hidden=True (for admin use).
+    Shiprocket catalog sync: use page, limit, and collection_id (same as category_id).
     """
+    per_page = limit if limit is not None else (page_size or 20)
+    cat_id = category_id or collection_id
     query = select(Product).options(
         selectinload(Product.category),
         selectinload(Product.brand),
@@ -74,8 +79,8 @@ async def list_products(
     )
     
     # Filters
-    if category_id:
-        query = query.where(Product.category_id == category_id)
+    if cat_id:
+        query = query.where(Product.category_id == cat_id)
     if brand_id:
         query = query.where(Product.brand_id == brand_id)
     if is_active is not None:
@@ -124,8 +129,8 @@ async def list_products(
     
     # Count total with same filters
     count_query = select(func.count(Product.id))
-    if category_id:
-        count_query = count_query.where(Product.category_id == category_id)
+    if cat_id:
+        count_query = count_query.where(Product.category_id == cat_id)
     if brand_id:
         count_query = count_query.where(Product.brand_id == brand_id)
     if is_active is not None:
@@ -162,8 +167,8 @@ async def list_products(
         query = query.order_by(sort_column.asc())
     
     # Pagination
-    offset = (page - 1) * page_size
-    query = query.offset(offset).limit(page_size)
+    offset = (page - 1) * per_page
+    query = query.offset(offset).limit(per_page)
     
     result = await db.execute(query)
     products = result.scalars().unique().all()
@@ -213,13 +218,13 @@ async def list_products(
             created_at=p.created_at,
         ))
     
-    total_pages = (total + page_size - 1) // page_size
+    total_pages = (total + per_page - 1) // per_page if per_page else 1
     
     return PaginatedResponse(
         items=items,
         total=total,
         page=page,
-        page_size=page_size,
+        page_size=per_page,
         total_pages=total_pages,
         has_next=page < total_pages,
         has_prev=page > 1,
