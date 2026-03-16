@@ -1,6 +1,18 @@
 from fastapi import APIRouter
 
-from app.api import auth, categories, brands, products, inventory, images, attributes, variants, homepage, orders
+from app.api import (
+    auth,
+    categories,
+    brands,
+    products,
+    inventory,
+    images,
+    attributes,
+    variants,
+    homepage,
+    orders,
+    external_catalog,
+)
 
 api_router = APIRouter()
 
@@ -14,4 +26,7 @@ api_router.include_router(inventory.router, prefix="/inventory", tags=["Inventor
 api_router.include_router(images.router, prefix="/images", tags=["Images"])
 api_router.include_router(homepage.router)
 api_router.include_router(orders.router, prefix="/orders", tags=["Orders"])
+api_router.include_router(
+    external_catalog.router, prefix="", tags=["External Catalog Integration"]
+)
 
