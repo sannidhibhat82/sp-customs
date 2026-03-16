@@ -289,6 +289,26 @@ export function VariantManager({ productId, productName, productSku, productPric
     },
   });
 
+  // Delete variant option template (used in manage options dialog)
+  const deleteVariantOptionMutation = useMutation({
+    mutationFn: (id: number) => api.deleteVariantOption(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['variant-options'] });
+      refetchVariantOptions();
+      toast({ title: 'Variant option removed' });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error removing option',
+        description: error.response?.data?.detail || 'Something went wrong',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Manage existing option templates dialog
+  const [showManageOptions, setShowManageOptions] = useState(false);
+
   const handleAddOption = (optionName: string, optionValue: string) => {
     if (!optionName || !optionValue) return;
     
@@ -910,7 +930,7 @@ export function VariantManager({ productId, productName, productSku, productPric
             {/* Option Selector */}
             <div>
               <label className="text-sm font-medium mb-2 block">Add Option</label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <select
                   value={selectedOptionType}
                   onChange={(e) => setSelectedOptionType(e.target.value)}
@@ -922,6 +942,14 @@ export function VariantManager({ productId, productName, productSku, productPric
                   ))}
                   <option value="custom">+ Custom Option</option>
                 </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowManageOptions(true)}
+                >
+                  Manage
+                </Button>
               </div>
 
               {/* Values for selected option type (preset or saved custom) */}
@@ -1072,6 +1100,103 @@ export function VariantManager({ productId, productName, productSku, productPric
               ) : (
                 'Create Variant'
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Variant Options Dialog */}
+      <Dialog open={showManageOptions} onOpenChange={setShowManageOptions}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Manage Variant Options</DialogTitle>
+            <DialogDescription>
+              Remove custom option types or individual values from the variant dropdowns. Existing product variants will keep their current values.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4 max-h-[420px] overflow-y-auto">
+            {apiVariantOptions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No saved variant options yet. Add custom options while creating variants to see them here.
+              </p>
+            ) : (
+              apiVariantOptions.map((opt: any) => (
+                <div
+                  key={opt.id}
+                  className="border border-border rounded-lg p-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-sm">{opt.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {opt.values?.length || 0} saved value{(opt.values?.length || 0) === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-400 hover:text-red-300"
+                      onClick={async () => {
+                        if (!confirm(`Delete option "${opt.name}" for all products? This will only remove it from the dropdown.`)) {
+                          return;
+                        }
+                        await deleteVariantOptionMutation.mutateAsync(opt.id);
+                      }}
+                      disabled={deleteVariantOptionMutation.isPending}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {opt.values && opt.values.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {opt.values.map((val: string) => (
+                        <span
+                          key={val}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary text-xs"
+                        >
+                          {val}
+                          <button
+                            type="button"
+                            className="hover:text-red-400"
+                            onClick={async () => {
+                              if (!confirm(`Remove value "${val}" from ${opt.name}?`)) {
+                                return;
+                              }
+                              const newValues = (opt.values as string[]).filter((v) => v !== val);
+                              if (newValues.length === 0) {
+                                if (confirm(`No values left for "${opt.name}". Also delete this option type from dropdowns?`)) {
+                                  await deleteVariantOptionMutation.mutateAsync(opt.id);
+                                } else {
+                                  await updateVariantOptionMutation.mutateAsync({
+                                    id: opt.id,
+                                    data: { values: [] },
+                                  });
+                                }
+                              } else {
+                                await updateVariantOptionMutation.mutateAsync({
+                                  id: opt.id,
+                                  data: { values: newValues },
+                                });
+                              }
+                            }}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowManageOptions(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
