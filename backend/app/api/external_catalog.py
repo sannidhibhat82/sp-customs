@@ -125,7 +125,12 @@ def _product_to_external_dict(
 @router.get("/external/products")
 async def external_products(
     page: int = Query(0, ge=0, description="Zero-based page index expected by external integrations"),
-    limit: int = Query(20, ge=1, le=100),
+    limit: Optional[int] = Query(
+        None,
+        ge=1,
+        le=100,
+        description="Items per page. If omitted, all products are returned.",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -156,8 +161,12 @@ async def external_products(
     )
     total = total_result.scalar() or 0
 
-    offset = (internal_page - 1) * limit
-    query = base_query.offset(offset).limit(limit)
+    # Pagination only when limit is provided. If limit is None, return all.
+    if limit is not None:
+        offset = (internal_page - 1) * limit
+        query = base_query.offset(offset).limit(limit)
+    else:
+        query = base_query
     result = await db.execute(query)
     products = result.scalars().unique().all()
 
