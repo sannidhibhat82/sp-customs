@@ -17,10 +17,13 @@ from app.database import get_db
 from app.models.product import Product
 from app.models.category import Category
 from app.models.brand import Brand
-from app.models.variant import ProductVariant
+from app.models.variant import ProductVariant, VariantInventory
 
 
 router = APIRouter()
+
+# Base URL for building absolute image URLs for external consumers
+EXTERNAL_BASE_URL = "https://spcustoms.in"
 
 
 def _decimal_to_str(value: Optional[Decimal]) -> Optional[str]:
@@ -40,6 +43,20 @@ def _product_to_external_dict(
     """
     tags_str = ", ".join(product.tags or [])
 
+    # Build product-level options from all variant option dicts
+    option_values_map: Dict[str, set] = {}
+    for v in variants:
+        if v.options:
+            for k, v_val in v.options.items():
+                if not v_val:
+                    continue
+                option_values_map.setdefault(k, set()).add(str(v_val))
+
+    options_list: List[Dict[str, Any]] = [
+        {"name": name, "values": sorted(list(values))}
+        for name, values in option_values_map.items()
+    ]
+
     out: Dict[str, Any] = {
         "id": product.id,
         "title": product.name,
@@ -51,11 +68,13 @@ def _product_to_external_dict(
         "updated_at": product.updated_at.isoformat() if product.updated_at else None,
         "tags": tags_str,
         "status": "active" if product.is_active else "inactive",
+        "options": options_list,
     }
 
     variant_items: List[Dict[str, Any]] = []
     for v in variants:
         price = v.price if v.price is not None else product.price
+        compare_at_price = v.compare_at_price if getattr(v, "compare_at_price", None) is not None else product.compare_at_price
 
         grams = 0
         weight = 0.0
@@ -66,16 +85,23 @@ def _product_to_external_dict(
         v_primary_image_url: Optional[str] = None
         if v.images:
             img = next((img for img in v.images if img.is_primary), v.images[0])
-            # Serve by image ID
-            v_primary_image_url = f"/api/images/serve/{img.id}"
+            # Serve by image ID (absolute URL)
+            v_primary_image_url = f"{EXTERNAL_BASE_URL}/api/images/serve/{img.id}"
 
         image_src = v_primary_image_url or primary_image_src
+
+        # Quantity from variant inventory if available
+        quantity = 0
+        if getattr(v, "inventory", None):
+            inv: VariantInventory = v.inventory
+            quantity = getattr(inv, "available_quantity", None) or inv.quantity or 0
 
         variant_items.append(
             {
                 "id": v.id,
                 "title": v.name,
                 "price": _decimal_to_str(price) or "0.00",
+                "compare_at_price": _decimal_to_str(compare_at_price) if compare_at_price is not None else None,
                 "sku": v.sku or product.sku,
                 "created_at": v.created_at.isoformat() if getattr(v, "created_at", None) else None,
                 "updated_at": v.updated_at.isoformat() if getattr(v, "updated_at", None) else None,
@@ -84,6 +110,8 @@ def _product_to_external_dict(
                 "image": {"src": image_src} if image_src else None,
                 "weight": weight,
                 "weight_unit": weight_unit,
+                "quantity": quantity,
+                "option_values": v.options or {},
             }
         )
 
@@ -135,7 +163,7 @@ async def external_products(
         primary_image_url: Optional[str] = None
         if p.images:
             img = next((img for img in p.images if img.is_primary), p.images[0])
-            primary_image_url = f"/api/images/serve/{img.id}"
+            primary_image_url = f"{EXTERNAL_BASE_URL}/api/images/serve/{img.id}"
 
         items.append(
             _product_to_external_dict(
@@ -187,10 +215,8 @@ async def external_collections(
 
     collections: List[Dict[str, Any]] = []
     for c in categories:
-        # Expose category image via a product-image-like URL if present.
-        # Currently categories store only raw base64, so we cannot serve via ID;
-        # for external integrations without a strict need for collection image,
-        # we omit a URL when not easily addressable.
+        # Collection images are currently stored as base64 only; no stable URL,
+        # so we omit image.src to avoid leaking raw data.
         image_src = None
         collections.append(
             {
@@ -257,7 +283,7 @@ async def external_products_by_collection(
         primary_image_url: Optional[str] = None
         if p.images:
             img = next((img for img in p.images if img.is_primary), p.images[0])
-            primary_image_url = f"/api/images/serve/{img.id}"
+            primary_image_url = f"{EXTERNAL_BASE_URL}/api/images/serve/{img.id}"
 
         items.append(
             _product_to_external_dict(
