@@ -61,12 +61,15 @@ def _product_to_external_dict(
         weight = 0.0
         weight_unit = "kg"
 
-        v_primary_image = None
+        # For external consumers we expose image URL, not raw base64.
+        # Prefer variant's primary image if available, otherwise fall back to product-level image URL.
+        v_primary_image_url: Optional[str] = None
         if v.images:
             img = next((img for img in v.images if img.is_primary), v.images[0])
-            v_primary_image = img.image_data
+            # Serve by image ID
+            v_primary_image_url = f"/api/images/serve/{img.id}"
 
-        image_src = v_primary_image or primary_image_src
+        image_src = v_primary_image_url or primary_image_src
 
         variant_items.append(
             {
@@ -128,16 +131,17 @@ async def external_products(
 
     items: List[Dict[str, Any]] = []
     for p in products:
-        primary_image = None
+        # For external consumers we expose a URL that serves the binary image.
+        primary_image_url: Optional[str] = None
         if p.images:
             img = next((img for img in p.images if img.is_primary), p.images[0])
-            primary_image = img.image_data
+            primary_image_url = f"/api/images/serve/{img.id}"
 
         items.append(
             _product_to_external_dict(
                 product=p,
                 brand=p.brand,
-                primary_image_src=primary_image,
+                primary_image_src=primary_image_url,
                 variants=p.variants or [],
             )
         )
@@ -183,7 +187,11 @@ async def external_collections(
 
     collections: List[Dict[str, Any]] = []
     for c in categories:
-        image_src = c.image_data
+        # Expose category image via a product-image-like URL if present.
+        # Currently categories store only raw base64, so we cannot serve via ID;
+        # for external integrations without a strict need for collection image,
+        # we omit a URL when not easily addressable.
+        image_src = None
         collections.append(
             {
                 "id": c.id,
@@ -246,16 +254,16 @@ async def external_products_by_collection(
 
     items: List[Dict[str, Any]] = []
     for p in products:
-        primary_image = None
+        primary_image_url: Optional[str] = None
         if p.images:
             img = next((img for img in p.images if img.is_primary), p.images[0])
-            primary_image = img.image_data
+            primary_image_url = f"/api/images/serve/{img.id}"
 
         items.append(
             _product_to_external_dict(
                 product=p,
                 brand=p.brand,
-                primary_image_src=primary_image,
+                primary_image_src=primary_image_url,
                 variants=p.variants or [],
             )
         )
