@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     
     # CORS
     CORS_ORIGINS: list = ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+    # Public base URL for building absolute links in external integrations
+    # (can be overridden via env, e.g. PUBLIC_BASE_URL="https://spcustoms.in")
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
     
     class Config:
         env_file = ".env"

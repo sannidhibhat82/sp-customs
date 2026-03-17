@@ -18,12 +18,13 @@ from app.models.product import Product
 from app.models.category import Category
 from app.models.brand import Brand
 from app.models.variant import ProductVariant, VariantInventory
+from app.config import settings
 
 
 router = APIRouter()
 
 # Base URL for building absolute image URLs for external consumers
-EXTERNAL_BASE_URL = "https://spcustoms.in"
+BASE_URL = settings.PUBLIC_BASE_URL.rstrip("/")
 
 
 def _decimal_to_str(value: Optional[Decimal]) -> Optional[str]:
@@ -86,7 +87,7 @@ def _product_to_external_dict(
         if v.images:
             img = next((img for img in v.images if img.is_primary), v.images[0])
             # Serve by image ID (absolute URL)
-            v_primary_image_url = f"{EXTERNAL_BASE_URL}/api/images/serve/{img.id}"
+            v_primary_image_url = f"{BASE_URL}/api/images/serve/{img.id}"
 
         image_src = v_primary_image_url or primary_image_src
 
@@ -142,7 +143,10 @@ async def external_products(
             selectinload(Product.category),
             selectinload(Product.brand),
             selectinload(Product.images),
-            selectinload(Product.variants).selectinload(ProductVariant.images),
+            selectinload(Product.variants)
+            .selectinload(ProductVariant.images),
+            selectinload(Product.variants)
+            .selectinload(ProductVariant.inventory),
         )
         .where(Product.is_active == True)
     )
@@ -163,7 +167,7 @@ async def external_products(
         primary_image_url: Optional[str] = None
         if p.images:
             img = next((img for img in p.images if img.is_primary), p.images[0])
-            primary_image_url = f"{EXTERNAL_BASE_URL}/api/images/serve/{img.id}"
+            primary_image_url = f"{BASE_URL}/api/images/serve/{img.id}"
 
         items.append(
             _product_to_external_dict(
@@ -260,7 +264,10 @@ async def external_products_by_collection(
             selectinload(Product.category),
             selectinload(Product.brand),
             selectinload(Product.images),
-            selectinload(Product.variants).selectinload(ProductVariant.images),
+            selectinload(Product.variants)
+            .selectinload(ProductVariant.images),
+            selectinload(Product.variants)
+            .selectinload(ProductVariant.inventory),
         )
         .where(Product.is_active == True)
         .where(Product.category_id == collection_id)
@@ -283,7 +290,7 @@ async def external_products_by_collection(
         primary_image_url: Optional[str] = None
         if p.images:
             img = next((img for img in p.images if img.is_primary), p.images[0])
-            primary_image_url = f"{EXTERNAL_BASE_URL}/api/images/serve/{img.id}"
+            primary_image_url = f"{BASE_URL}/api/images/serve/{img.id}"
 
         items.append(
             _product_to_external_dict(
