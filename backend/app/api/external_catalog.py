@@ -198,7 +198,12 @@ async def external_products(
 @router.get("/external/collections")
 async def external_collections(
     page: int = Query(0, ge=0, description="Zero-based page index expected by external integrations"),
-    limit: int = Query(20, ge=1, le=100),
+    limit: Optional[int] = Query(
+        None,
+        ge=1,
+        le=100,
+        description="Items per page. If omitted, all collections are returned.",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -217,12 +222,15 @@ async def external_collections(
     )
     total = total_result.scalar() or 0
 
-    offset = (internal_page - 1) * limit
-    query = (
-        base_query.order_by(Category.sort_order, Category.name)
-        .offset(offset)
-        .limit(limit)
-    )
+    if limit is not None:
+        offset = (internal_page - 1) * limit
+        query = (
+            base_query.order_by(Category.sort_order, Category.name)
+            .offset(offset)
+            .limit(limit)
+        )
+    else:
+        query = base_query.order_by(Category.sort_order, Category.name)
     result = await db.execute(query)
     categories = result.scalars().all()
 
