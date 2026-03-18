@@ -12,11 +12,17 @@ import {
   Search,
   MessageCircle,
   Palette,
+  User,
+  LogOut,
+  ShoppingCart,
+  Heart,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { usePublicThemeStore, useUIStore } from '@/lib/store';
 import { cn, getWhatsAppUrl } from '@/lib/utils';
+import { api } from '@/lib/api';
+import LoginModal from '@/components/public/LoginModal';
 
 const accentColors = [
   { name: 'orange', color: '#f97316', label: 'Orange' },
@@ -44,6 +50,17 @@ export default function Header() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAccentPicker, setShowAccentPicker] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [authRefresh, setAuthRefresh] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  const isPublicSite = !pathname.startsWith('/admin');
+  const hasCustomerToken = mounted && isPublicSite && !!api.getToken();
+  void authRefresh; // force re-render when token changes (login/logout)
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -227,6 +244,86 @@ export default function Header() {
                 <Sun className="w-5 h-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute w-5 h-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
               </Button>
+
+              {/* Cart (public site only) */}
+              {isPublicSite && (
+                <Link href="/cart" className="hidden sm:block">
+                  <Button variant="ghost" size="icon" title="Cart">
+                    <ShoppingCart className="w-5 h-5" />
+                  </Button>
+                </Link>
+              )}
+
+              {/* Customer: Profile dropdown (logged in) or Login (public site only) */}
+              {isPublicSite && (
+                mounted ? (
+                  hasCustomerToken ? (
+                    <div className="relative hidden sm:block">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                        className="relative"
+                        title="My account"
+                      >
+                        <User className="w-5 h-5" />
+                      </Button>
+                      <AnimatePresence>
+                        {showProfileDropdown && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-40"
+                              onClick={() => setShowProfileDropdown(false)}
+                            />
+                            <motion.div
+                              initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                              className="absolute right-0 top-full mt-2 py-2 min-w-[180px] bg-card rounded-xl border border-border shadow-xl z-50"
+                            >
+                              <Link href="/account" onClick={() => setShowProfileDropdown(false)}>
+                                <span className="block px-4 py-2.5 text-sm font-medium hover:bg-secondary/50">
+                                  My Account
+                                </span>
+                              </Link>
+                              <Link href="/account/orders" onClick={() => setShowProfileDropdown(false)}>
+                                <span className="block px-4 py-2.5 text-sm font-medium hover:bg-secondary/50">
+                                  My Orders
+                                </span>
+                              </Link>
+                              <Link href="/account/favorites" onClick={() => setShowProfileDropdown(false)}>
+                                <span className="block px-4 py-2.5 text-sm font-medium hover:bg-secondary/50">
+                                  Favourite
+                                </span>
+                              </Link>
+                              <button
+                                type="button"
+                                className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-secondary/50 flex items-center gap-2"
+                                onClick={() => { api.clearToken(); setAuthRefresh((v) => v + 1); setShowProfileDropdown(false); }}
+                              >
+                                <LogOut className="w-4 h-4" />
+                                Logout
+                              </button>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="hidden sm:flex gap-2"
+                      onClick={() => setShowLoginModal(true)}
+                    >
+                      <User className="w-4 h-4" />
+                      Login
+                    </Button>
+                  )
+                ) : (
+                  <div className="hidden sm:block w-9 h-9" aria-hidden />
+                )
+              )}
 
               {/* Enquire CTA - Uses theme accent color */}
               <Link
@@ -437,6 +534,45 @@ export default function Header() {
                     </div>
                   </div>
 
+                  {isPublicSite && (
+                    hasCustomerToken ? (
+                      <>
+                        <Link href="/cart" onClick={() => setIsMobileMenuOpen(false)} className="px-4 py-3 rounded-lg font-medium flex items-center gap-2">
+                          <ShoppingCart className="w-4 h-4" />
+                          Cart
+                        </Link>
+                        <Link href="/account" onClick={() => setIsMobileMenuOpen(false)} className="px-4 py-3 rounded-lg font-medium flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          My Account
+                        </Link>
+                        <Link href="/account/orders" onClick={() => setIsMobileMenuOpen(false)} className="px-4 py-3 rounded-lg font-medium flex items-center gap-2">
+                          My Orders
+                        </Link>
+                        <Link href="/account/favorites" onClick={() => setIsMobileMenuOpen(false)} className="px-4 py-3 rounded-lg font-medium flex items-center gap-2">
+                          <Heart className="w-4 h-4" />
+                          Favourite
+                        </Link>
+                        <button
+                          type="button"
+                          className="w-full px-4 py-3 rounded-lg font-medium text-left text-muted-foreground hover:bg-secondary flex items-center gap-2"
+                          onClick={() => { api.clearToken(); setAuthRefresh((v) => v + 1); setIsMobileMenuOpen(false); }}
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Logout
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="w-full px-4 py-3 rounded-lg font-medium text-left hover:bg-secondary flex items-center gap-2"
+                        onClick={() => { setIsMobileMenuOpen(false); setShowLoginModal(true); }}
+                      >
+                        <User className="w-4 h-4" />
+                        Login
+                      </button>
+                    )
+                  )}
+
                   <Link
                     href={getWhatsAppUrl("Hi! I'm interested in your car gadgets.")}
                     target="_blank"
@@ -453,6 +589,12 @@ export default function Header() {
           </>
         )}
       </AnimatePresence>
+
+      <LoginModal
+        open={showLoginModal}
+        onOpenChange={setShowLoginModal}
+        onSuccess={() => setAuthRefresh((v) => v + 1)}
+      />
     </>
   );
 }

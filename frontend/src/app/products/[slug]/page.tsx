@@ -15,7 +15,6 @@ async function getProduct(slug: string) {
     if (/^\d+$/.test(slug)) {
       const res = await fetch(`${API_URL}/products/${slug}`, {
         next: { revalidate: 60 },
-        cache: 'no-store',
       });
       if (res.ok) return res.json();
       return null;
@@ -23,7 +22,6 @@ async function getProduct(slug: string) {
     // Fetch by slug (works for all products, including older ones beyond first page)
     const res = await fetch(`${API_URL}/products/by-slug/${encodeURIComponent(slug)}`, {
       next: { revalidate: 60 },
-      cache: 'no-store',
     });
     if (res.ok) return res.json();
     return null;

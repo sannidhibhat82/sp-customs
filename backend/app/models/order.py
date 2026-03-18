@@ -23,8 +23,8 @@ class Order(Base):
     # Order number (human-readable)
     order_number = Column(String(50), unique=True, nullable=False, index=True)
     
-    # Order status: pending, processing, packed, shipped, delivered, cancelled
-    status = Column(String(50), default="pending", index=True)
+    # Order status: Pending Approval -> then Processing, Packed, Shipped, etc. (admin-managed list)
+    status = Column(String(50), default="Pending Approval", index=True)
     
     # Pricing (calculated totals)
     subtotal = Column(Numeric(12, 2), default=0)
@@ -91,8 +91,18 @@ class Order(Base):
     internal_notes = Column(Text, nullable=True)
     customer_notes = Column(Text, nullable=True)
     
-    # User who created the order
+    # User who created the order (nullable for guest checkout)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    
+    # Book Now flow: link to cart that was converted (optional)
+    cart_id = Column(Integer, ForeignKey("carts.id", ondelete="SET NULL"), nullable=True, index=True)
+    
+    # Payment & shipment (Shiprocket integration)
+    payment_status = Column(String(50), nullable=True, index=True)  # initiated|pending|success|failed|refunded
+    shipment_status = Column(String(50), nullable=True, index=True)  # shiprocket lifecycle states
+    shiprocket_order_id = Column(String(100), nullable=True, index=True)
+    shiprocket_shipment_id = Column(String(100), nullable=True, index=True)
+    tracking_id = Column(String(100), nullable=True, index=True)  # AWB / tracking number shown to customer
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -103,6 +113,8 @@ class Order(Base):
     # Relationships
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     created_by = relationship("User", backref="orders")
+    cart = relationship("Cart", backref="orders")
+    order_address = relationship("OrderAddress", back_populates="order", uselist=False, cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Order {self.order_number}>"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -26,6 +26,7 @@ function getImageSrc(imageData: string | undefined): string | undefined {
 
 // Product Card Component
 function ProductCard({ product }: { product: any }) {
+  const router = useRouter();
   const imageData = product.primary_image || product.images?.[0]?.image_data;
   const discount = product.compare_at_price && Number(product.compare_at_price) > Number(product.price)
     ? Math.round((1 - Number(product.price) / Number(product.compare_at_price)) * 100)
@@ -36,7 +37,8 @@ function ProductCard({ product }: { product: any }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -8 }}
-      className="group relative bg-card rounded-2xl border border-border overflow-hidden"
+      className="group relative bg-card rounded-2xl border border-border overflow-hidden cursor-pointer"
+      onClick={() => router.push(`/products/${product.slug || product.id}`)}
     >
       <div className="aspect-square bg-secondary/30 relative overflow-hidden">
         {imageData ? (
@@ -69,7 +71,7 @@ function ProductCard({ product }: { product: any }) {
 
         {/* Quick View */}
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Link href={`/products/${product.slug || product.id}`}>
+          <Link href={`/products/${product.slug || product.id}`} onClick={(e) => e.stopPropagation()}>
             <Button size="sm">View Details</Button>
           </Link>
         </div>

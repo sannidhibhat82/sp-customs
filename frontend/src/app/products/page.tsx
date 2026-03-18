@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -49,6 +49,7 @@ function getImageSrc(imageData: string | undefined): string | undefined {
 
 // Product Card
 function ProductCard({ product, view }: { product: any; view: 'grid' | 'list' }) {
+  const router = useRouter();
   // API returns primary_image directly for list view, or images array for detail view
   const imageData = product.primary_image || product.images?.[0]?.image_data;
   const discount = product.compare_at_price && Number(product.compare_at_price) > Number(product.price)
@@ -61,10 +62,15 @@ function ProductCard({ product, view }: { product: any; view: 'grid' | 'list' })
         layout
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="group flex gap-4 sm:gap-6 bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/50 transition-colors"
+        className="group flex gap-4 sm:gap-6 bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/50 transition-colors cursor-pointer"
+        onClick={() => router.push(`/products/${product.slug || product.id}`)}
       >
         {/* Image */}
-        <Link href={`/products/${product.slug || product.id}`} className="w-32 sm:w-40 h-32 sm:h-40 bg-secondary/30 flex-shrink-0">
+        <Link
+          href={`/products/${product.slug || product.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="w-32 sm:w-40 h-32 sm:h-40 bg-secondary/30 flex-shrink-0"
+        >
           {imageData ? (
             <img
               src={getImageSrc(imageData)}
@@ -86,7 +92,7 @@ function ProductCard({ product, view }: { product: any; view: 'grid' | 'list' })
             <p className="text-xs sm:text-sm text-primary font-medium mb-0.5">
               {product.brand?.name || product.category?.name || 'SP Customs'}
             </p>
-            <Link href={`/products/${product.slug || product.id}`}>
+            <Link href={`/products/${product.slug || product.id}`} onClick={(e) => e.stopPropagation()}>
               <h3 className="text-base sm:text-lg font-semibold mb-1 group-hover:text-primary transition-colors line-clamp-1">
                 {product.name}
               </h3>
@@ -112,7 +118,7 @@ function ProductCard({ product, view }: { product: any; view: 'grid' | 'list' })
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Link href={`/products/${product.slug || product.id}`}>
+              <Link href={`/products/${product.slug || product.id}`} onClick={(e) => e.stopPropagation()}>
                 <Button size="sm" variant="outline" className="h-8 px-3">
                   View
                 </Button>
@@ -140,7 +146,8 @@ function ProductCard({ product, view }: { product: any; view: 'grid' | 'list' })
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       whileHover={{ y: -8 }}
-      className="group relative bg-card rounded-2xl border border-border overflow-hidden"
+      className="group relative bg-card rounded-2xl border border-border overflow-hidden cursor-pointer"
+      onClick={() => router.push(`/products/${product.slug || product.id}`)}
     >
       <div className="aspect-square bg-secondary/30 relative overflow-hidden">
         {imageData ? (
@@ -178,7 +185,7 @@ function ProductCard({ product, view }: { product: any; view: 'grid' | 'list' })
 
         {/* Quick Actions */}
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-          <Link href={`/products/${product.slug || product.id}`}>
+          <Link href={`/products/${product.slug || product.id}`} onClick={(e) => e.stopPropagation()}>
             <Button size="sm">View Details</Button>
           </Link>
         </div>

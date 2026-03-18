@@ -1,5 +1,5 @@
 """
-Orders API - Order management and shipping.
+Orders API - Order management and shipping (admin + customer my-orders).
 """
 from typing import List, Optional
 from datetime import datetime
@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.order import Order, OrderItem, DirectOrder, DirectOrderItem
+from app.models.order_address import OrderAddress
 from app.models.product import Product
 from app.models.variant import ProductVariant
 from app.models.user import User
@@ -18,11 +19,13 @@ from app.models.inventory import Inventory, InventoryLog
 from app.schemas.order import (
     OrderCreate, OrderUpdate, OrderResponse, OrderListResponse,
     OrderItemCreate, OrderItemResponse, OrderScanRequest, OrderScanResponse,
+    ApproveShiprocketRequest,
     DirectOrderCreate, DirectOrderUpdate, DirectOrderResponse, DirectOrderListResponse,
     DirectOrderItemCreate, DirectOrderItemResponse
 )
-from app.services.auth import get_admin_user
+from app.services.auth import get_admin_user, get_current_user
 from app.services.barcode_generator import BarcodeGenerator
+from app.config import settings
 
 router = APIRouter()
 
@@ -33,6 +36,43 @@ def generate_order_number() -> str:
     return f"ORD-{now.strftime('%Y%m%d')}-{now.strftime('%H%M%S')}"
 
 
+@router.get("/my", response_model=List[OrderListResponse])
+async def list_my_orders(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """List orders for the current customer (requires login)."""
+    if not current_user or current_user.role != "customer":
+        raise HTTPException(status_code=401, detail="Login required")
+    query = select(Order).options(selectinload(Order.items)).where(Order.created_by_id == current_user.id)
+    if status_filter:
+        query = query.where(Order.status == status_filter)
+    query = query.order_by(desc(Order.created_at))
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
+    result = await db.execute(query)
+    orders = result.scalars().all()
+    return [
+        OrderListResponse(
+            id=order.id,
+            uuid=order.uuid,
+            order_number=order.order_number,
+            status=order.status,
+            total=order.total,
+            shipping_info=order.shipping_info,
+            item_count=len(order.items),
+            payment_status=order.payment_status,
+            tracking_id=order.tracking_id,
+            created_at=order.created_at,
+            updated_at=order.updated_at,
+        )
+        for order in orders
+    ]
+
+
 @router.get("", response_model=List[OrderListResponse])
 async def list_orders(
     status_filter: Optional[str] = Query(None, alias="status"),
@@ -41,16 +81,13 @@ async def list_orders(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user)
 ):
-    """List all orders with pagination."""
+    """List all orders with pagination (admin)."""
     query = select(Order).options(selectinload(Order.items))
     
     if status_filter:
         query = query.where(Order.status == status_filter)
     
-    # Order by newest first
     query = query.order_by(desc(Order.created_at))
-    
-    # Pagination
     offset = (page - 1) * page_size
     query = query.offset(offset).limit(page_size)
     
@@ -66,11 +103,70 @@ async def list_orders(
             total=order.total,
             shipping_info=order.shipping_info,
             item_count=len(order.items),
+            payment_status=order.payment_status,
+            tracking_id=order.tracking_id,
             created_at=order.created_at,
             updated_at=order.updated_at,
         )
         for order in orders
     ]
+
+
+@router.get("/my/{order_id}", response_model=OrderResponse)
+async def get_my_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user),
+):
+    """Get a single order for the current customer (own order only)."""
+    if not current_user or current_user.role != "customer":
+        raise HTTPException(status_code=401, detail="Login required")
+    result = await db.execute(
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.id == order_id, Order.created_by_id == current_user.id)
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return OrderResponse(
+        id=order.id,
+        uuid=order.uuid,
+        order_number=order.order_number,
+        status=order.status,
+        subtotal=order.subtotal,
+        discount_amount=order.discount_amount,
+        shipping_cost=order.shipping_cost,
+        tax_amount=order.tax_amount,
+        total=order.total,
+        shipping_info=order.shipping_info,
+        billing_info=order.billing_info,
+        shipping_details=order.shipping_details,
+        payment_info=order.payment_info,
+        invoice_data=order.invoice_data,
+        extra_data=order.extra_data,
+        internal_notes=order.internal_notes,
+        customer_notes=order.customer_notes,
+        created_by_id=order.created_by_id,
+        payment_status=order.payment_status,
+        shipment_status=order.shipment_status,
+        tracking_id=order.tracking_id,
+        items=[OrderItemResponse.model_validate(item) for item in order.items],
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+        shipped_at=order.shipped_at,
+        delivered_at=order.delivered_at,
+    )
+
+
+@router.get("/status-options")
+async def get_order_status_options(
+    current_user: User = Depends(get_admin_user),
+):
+    """Return admin-configured order status list for dropdowns."""
+    raw = getattr(settings, "ORDER_STATUS_LIST", "Pending Approval,Processing,Packed,Shipped,Out for Delivery,Delivered,Cancelled")
+    status_list = [s.strip() for s in raw.split(",") if s.strip()]
+    return {"statuses": status_list}
 
 
 @router.get("/stats")
@@ -424,6 +520,36 @@ async def update_direct_order_status(
 
 # ============ Regular Orders ============
 
+@router.get("/by-uuid/{order_uuid}")
+async def get_order_by_uuid_public(
+    order_uuid: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public: get order summary by uuid (for success page).
+    Returns minimal fields; no admin auth required.
+    """
+    result = await db.execute(
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.uuid == order_uuid)
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {
+        "id": order.id,
+        "uuid": order.uuid,
+        "order_number": order.order_number,
+        "status": order.status,
+        "payment_status": order.payment_status,
+        "shipment_status": order.shipment_status,
+        "total": float(order.total),
+        "item_count": len(order.items),
+        "created_at": order.created_at.isoformat() if order.created_at else None,
+    }
+
+
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: int,
@@ -460,12 +586,94 @@ async def get_order(
         internal_notes=order.internal_notes,
         customer_notes=order.customer_notes,
         created_by_id=order.created_by_id,
+        payment_status=order.payment_status,
+        shipment_status=order.shipment_status,
+        tracking_id=order.tracking_id,
         items=[OrderItemResponse.model_validate(item) for item in order.items],
         created_at=order.created_at,
         updated_at=order.updated_at,
         shipped_at=order.shipped_at,
         delivered_at=order.delivered_at,
     )
+
+
+@router.post("/{order_id}/approve-shiprocket")
+async def approve_order_shiprocket(
+    order_id: int,
+    body: ApproveShiprocketRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Create Shiprocket shipment for order (admin approval with dimensions)."""
+    result = await db.execute(
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.id == order_id)
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.shiprocket_order_id:
+        raise HTTPException(status_code=400, detail="Order already sent to Shiprocket")
+    addr_result = await db.execute(select(OrderAddress).where(OrderAddress.order_id == order.id))
+    addr = addr_result.scalar_one_or_none()
+    if not addr:
+        raise HTTPException(status_code=400, detail="Order has no shipping address")
+    try:
+        from app.services.shiprocket import (
+            create_order as sr_create_order,
+            build_order_payload,
+            generate_label,
+            generate_invoice,
+        )
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Shiprocket not configured")
+    order_items_sr = [
+        {"name": oi.product_name, "sku": oi.product_sku, "units": oi.quantity, "price": float(oi.unit_price)}
+        for oi in order.items
+    ]
+    payload = build_order_payload(
+        order_number=order.order_number,
+        customer_name=addr.name,
+        customer_phone=addr.phone,
+        customer_email=order.shipping_info.get("email", "") or "",
+        address=addr.address,
+        city=addr.city,
+        state=addr.state,
+        pincode=addr.pincode,
+        country=addr.country,
+        order_items=order_items_sr,
+        total_amount=float(order.total),
+        payment_method="prepaid",
+        weight=body.package_weight,
+        length=body.package_length,
+        width=body.package_width,
+        height=body.package_height,
+        pickup_location=body.pickup_location,
+    )
+    sr_resp = await sr_create_order(payload)
+    if sr_resp.get("order_id"):
+        order.shiprocket_order_id = str(sr_resp["order_id"])
+    order.shipment_status = "created"
+    awb_or_tracking = None
+    if sr_resp.get("shipments") and len(sr_resp["shipments"]) > 0:
+        sid = sr_resp["shipments"][0].get("id")
+        if sid:
+            order.shiprocket_shipment_id = str(sid)
+            awb_or_tracking = sr_resp["shipments"][0].get("awb_code") or sr_resp["shipments"][0].get("tracking_no") or sr_resp["shipments"][0].get("tracking_number")
+    if awb_or_tracking:
+        order.tracking_id = str(awb_or_tracking)
+    status_list = [s.strip() for s in (getattr(settings, "ORDER_STATUS_LIST", "") or "Processing").split(",") if s.strip()]
+    order.status = status_list[1] if len(status_list) > 1 else "Processing"
+    try:
+        if order.shiprocket_shipment_id:
+            await generate_label(order.shiprocket_shipment_id)
+            await generate_invoice(order.shiprocket_shipment_id)
+    except Exception:
+        pass
+    await db.commit()
+    await db.refresh(order)
+    return {"success": True, "order_id": order.id, "shiprocket_order_id": order.shiprocket_order_id, "tracking_id": order.tracking_id}
 
 
 @router.post("", response_model=OrderResponse)
@@ -877,8 +1085,9 @@ async def update_order_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user)
 ):
-    """Quick status update for an order."""
-    valid_statuses = ["pending", "processing", "packed", "shipped", "delivered", "cancelled"]
+    """Quick status update for an order (admin). Uses ORDER_STATUS_LIST from config."""
+    raw = getattr(settings, "ORDER_STATUS_LIST", "Pending Approval,Processing,Packed,Shipped,Delivered,Cancelled")
+    valid_statuses = [s.strip() for s in raw.split(",") if s.strip()]
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
     

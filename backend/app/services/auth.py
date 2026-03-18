@@ -70,13 +70,14 @@ class AuthService:
     
     @staticmethod
     async def authenticate_user(db: AsyncSession, username: str, password: str) -> Optional[User]:
-        """Authenticate a user by username and password."""
+        """Authenticate a user by username and password (admin only; customers use OTP)."""
         result = await db.execute(select(User).where(User.username == username))
         user = result.scalar_one_or_none()
         
         if not user:
             return None
-        
+        if not user.hashed_password:
+            return None  # OTP-only customer cannot login with password
         if not AuthService.verify_password(password, user.hashed_password):
             return None
         

@@ -22,12 +22,19 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=6)
 
 
+class UserMeUpdate(BaseModel):
+    """Customer profile update (self)."""
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+
+
 class UserResponse(BaseModel):
     id: int
     uuid: str
     username: str
     email: Optional[str] = None
     full_name: Optional[str] = None
+    phone: Optional[str] = None
     avatar_data: Optional[str] = None
     role: str
     is_active: bool
@@ -55,4 +62,15 @@ class TokenData(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class SendOtpRequest(BaseModel):
+    phone: str
+    name: Optional[str] = None
+
+
+class VerifyOtpRequest(BaseModel):
+    phone: str
+    otp: str
+    name: Optional[str] = None  # Used if not stored from send-otp
 

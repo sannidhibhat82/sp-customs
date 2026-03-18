@@ -24,13 +24,13 @@ class ApiClient {
       return config;
     });
 
-    // Response interceptor for errors
+    // Response interceptor for errors (redirect to admin login only when on admin area)
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
         if (error.response?.status === 401) {
           this.clearToken();
-          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/admin/login')) {
+          if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/admin/login')) {
             window.location.href = '/admin/login';
           }
         }
@@ -61,7 +61,7 @@ class ApiClient {
     }
   }
 
-  // Auth
+  // Auth (admin: username/password; customer: OTP)
   async login(username: string, password: string) {
     const response = await this.client.post('/auth/login/json', { username, password });
     this.setToken(response.data.access_token);
@@ -70,6 +70,22 @@ class ApiClient {
 
   async getMe() {
     const response = await this.client.get('/auth/me');
+    return response.data;
+  }
+
+  async updateMe(data: { full_name?: string; email?: string }) {
+    const response = await this.client.put('/auth/me', data);
+    return response.data;
+  }
+
+  async sendOtp(phone: string, name?: string) {
+    const response = await this.client.post('/auth/send-otp', { phone, name });
+    return response.data;
+  }
+
+  async verifyOtp(phone: string, otp: string, name?: string) {
+    const response = await this.client.post('/auth/verify-otp', { phone, otp, name });
+    this.setToken(response.data.access_token);
     return response.data;
   }
 
@@ -692,6 +708,33 @@ class ApiClient {
     return response.data;
   }
 
+  async getMyOrders(params?: { status?: string; page?: number; page_size?: number }) {
+    const response = await this.client.get('/orders/my', { params });
+    return response.data;
+  }
+
+  async getMyOrder(orderId: number) {
+    const response = await this.client.get(`/orders/my/${orderId}`);
+    return response.data;
+  }
+
+  async getOrderStatusOptions() {
+    const response = await this.client.get('/orders/status-options');
+    return response.data;
+  }
+
+  async approveOrderShiprocket(orderId: number, data: {
+    package_length?: number;
+    package_width?: number;
+    package_height?: number;
+    package_weight?: number;
+    pickup_location?: string;
+    courier_id?: number;
+  }) {
+    const response = await this.client.post(`/orders/${orderId}/approve-shiprocket`, data);
+    return response.data;
+  }
+
   async getOrderStats() {
     const response = await this.client.get('/orders/stats');
     return response.data;
@@ -842,6 +885,155 @@ class ApiClient {
     return response.data;
   }
 
+  // ============ Cart (Book Now flow) ============
+
+  getGuestSessionId(): string | null {
+    if (typeof window === 'undefined') return null;
+    let id = localStorage.getItem('sp_customs_guest_session');
+    if (!id) {
+      id = 'gs_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem('sp_customs_guest_session', id);
+    }
+    return id;
+  }
+
+  async getCart(guestSessionId?: string | null) {
+    const params: Record<string, string> = {};
+    if (guestSessionId) params.guest_session_id = guestSessionId;
+    const response = await this.client.get('/cart', { params });
+    return response.data;
+  }
+
+  async addToCart(data: { product_id: number; variant_id?: number; quantity?: number }, guestSessionId?: string | null) {
+    const params: Record<string, string> = {};
+    if (guestSessionId) params.guest_session_id = guestSessionId;
+    const response = await this.client.post('/cart/items', data, { params });
+    return response.data;
+  }
+
+  async updateCartItem(itemId: number, quantity: number, guestSessionId?: string | null) {
+    const params: Record<string, string> = {};
+    if (guestSessionId) params.guest_session_id = guestSessionId;
+    const response = await this.client.put(`/cart/items/${itemId}`, { quantity }, { params });
+    return response.data;
+  }
+
+  async removeCartItem(itemId: number, guestSessionId?: string | null) {
+    const params: Record<string, string> = {};
+    if (guestSessionId) params.guest_session_id = guestSessionId;
+    const response = await this.client.delete(`/cart/items/${itemId}`, { params });
+    return response.data;
+  }
+
+  async clearCart(guestSessionId?: string | null) {
+    const params: Record<string, string> = {};
+    if (guestSessionId) params.guest_session_id = guestSessionId;
+    const response = await this.client.delete('/cart', { params });
+    return response.data;
+  }
+
+  // ============ Favorites ============
+
+  async getFavorites(guestSessionId?: string | null) {
+    const params: Record<string, string> = {};
+    if (guestSessionId) params.guest_session_id = guestSessionId;
+    const response = await this.client.get('/favorites', { params });
+    return response.data;
+  }
+
+  async addFavorite(productId: number, guestSessionId?: string | null) {
+    const params: Record<string, string> = {};
+    if (guestSessionId) params.guest_session_id = guestSessionId;
+    const response = await this.client.post(`/favorites/${productId}`, {}, { params });
+    return response.data;
+  }
+
+  async removeFavorite(productId: number, guestSessionId?: string | null) {
+    const params: Record<string, string> = {};
+    if (guestSessionId) params.guest_session_id = guestSessionId;
+    const response = await this.client.delete(`/favorites/${productId}`, { params });
+    return response.data;
+  }
+
+  // ============ Checkout ============
+
+  async validateCheckout(cartId: number, guestSessionId?: string | null) {
+    const params: Record<string, string | number> = { cart_id: cartId };
+    if (guestSessionId) params.guest_session_id = guestSessionId;
+    const response = await this.client.get('/checkout/validate', { params });
+    return response.data;
+  }
+
+  isCustomerLoggedIn(): boolean {
+    return !!this.getToken();
+  }
+
+  async createCheckoutOrder(data: {
+    cart_id: number;
+    address: { name: string; phone: string; address: string; city: string; state: string; pincode: string; country?: string };
+    guest_session_id?: string | null;
+  }) {
+    const response = await this.client.post('/checkout/create', data);
+    return response.data;
+  }
+
+  /** Confirm payment success (e.g. after completing payment on checkout payment page or webhook). */
+  async confirmPaymentSuccess(orderId: number) {
+    const response = await this.client.post('/checkout/payment-success', null, {
+      params: { order_id: orderId },
+    });
+    return response.data;
+  }
+
+  // ============ Shiprocket Checkout (Headless) ============
+
+  async getShiprocketCheckoutToken(orderUuid: string) {
+    const response = await this.client.post('/checkout/shiprocket/token', null, {
+      params: { order_uuid: orderUuid },
+    });
+    return response.data;
+  }
+
+  async confirmShiprocketRedirect(params: { order_uuid: string; oid: string; ost: string }) {
+    const response = await this.client.post('/checkout/shiprocket/confirm', null, { params });
+    return response.data;
+  }
+
+  async getOrderByUuid(uuid: string) {
+    const response = await this.client.get(`/orders/by-uuid/${uuid}`);
+    return response.data;
+  }
+
+  // ============ Saved Addresses ============
+
+  async listAddresses() {
+    const response = await this.client.get('/addresses');
+    return response.data;
+  }
+
+  async createAddress(data: {
+    name: string;
+    phone: string;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country?: string;
+    is_default?: boolean;
+  }) {
+    const response = await this.client.post('/addresses', data);
+    return response.data;
+  }
+
+  async updateAddress(addressId: number, data: any) {
+    const response = await this.client.put(`/addresses/${addressId}`, data);
+    return response.data;
+  }
+
+  async deleteAddress(addressId: number) {
+    const response = await this.client.delete(`/addresses/${addressId}`);
+    return response.data;
+  }
 }
 
 export const api = new ApiClient();

@@ -161,7 +161,7 @@ def _product_to_external_dict(
 
 @router.get("/external/products")
 async def external_products(
-    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    page: int = Query(0, ge=0, description="Page number (Shiprocket uses 0-based; 0 means first page)"),
     limit: Optional[int] = Query(
         None,
         ge=1,
@@ -177,7 +177,7 @@ async def external_products(
     Example:
     GET /external/products?page=0&limit=2
     """
-    internal_page = page
+    internal_page = (page + 1) if page == 0 else page
 
     base_query = (
         select(Product)
@@ -235,7 +235,7 @@ async def external_products(
 
 @router.get("/external/collections")
 async def external_collections(
-    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    page: int = Query(0, ge=0, description="Page number (Shiprocket uses 0-based; 0 means first page)"),
     limit: Optional[int] = Query(
         None,
         ge=1,
@@ -251,7 +251,7 @@ async def external_collections(
     Example:
     GET /external/collections?page=0&limit=2
     """
-    internal_page = page
+    internal_page = (page + 1) if page == 0 else page
 
     base_query = select(Category).where(Category.is_active == True)
 
@@ -300,7 +300,7 @@ async def external_collections(
 @router.get("/external/collections/{collection_id}/products")
 async def external_products_by_collection(
     collection_id: int,
-    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    page: int = Query(0, ge=0, description="Page number (Shiprocket uses 0-based; 0 means first page)"),
     limit: Optional[int] = Query(
         None,
         ge=1,
@@ -316,7 +316,7 @@ async def external_products_by_collection(
     Example:
     GET /external/collections/1234/products?page=0&limit=1
     """
-    internal_page = page
+    internal_page = (page + 1) if page == 0 else page
 
     base_query = (
         select(Product)

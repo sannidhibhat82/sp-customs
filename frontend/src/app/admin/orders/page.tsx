@@ -43,6 +43,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -68,24 +69,23 @@ const PAYMENT_METHODS = [
   { value: 'prepaid', label: 'Prepaid' },
 ];
 
-// Order statuses
-const ORDER_STATUSES = [
-  { value: 'pending', label: 'Pending', color: 'bg-yellow-500' },
-  { value: 'processing', label: 'Processing', color: 'bg-blue-500' },
-  { value: 'packed', label: 'Packed', color: 'bg-purple-500' },
-  { value: 'shipped', label: 'Shipped', color: 'bg-indigo-500' },
-  { value: 'delivered', label: 'Delivered', color: 'bg-green-500' },
-  { value: 'cancelled', label: 'Cancelled', color: 'bg-red-500' },
+// Fallback order statuses (admin can override via API)
+const DEFAULT_ORDER_STATUSES = [
+  'Pending Approval', 'Processing', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled',
 ];
 
 // Order status colors (dark theme compatible)
 const STATUS_COLORS: Record<string, string> = {
+  'Pending Approval': 'bg-amber-500/20 text-amber-500 border-amber-500/30',
   pending: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30',
   processing: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
   packed: 'bg-purple-500/20 text-purple-500 border-purple-500/30',
   shipped: 'bg-indigo-500/20 text-indigo-500 border-indigo-500/30',
+  'Out for Delivery': 'bg-sky-500/20 text-sky-500 border-sky-500/30',
   delivered: 'bg-green-500/20 text-green-500 border-green-500/30',
+  Delivered: 'bg-green-500/20 text-green-500 border-green-500/30',
   cancelled: 'bg-red-500/20 text-red-500 border-red-500/30',
+  Cancelled: 'bg-red-500/20 text-red-500 border-red-500/30',
 };
 
 // Format currency
@@ -169,6 +169,13 @@ export default function OrdersPage() {
   const labelRef = useRef<HTMLDivElement>(null);
   const mobileUrl = typeof window !== 'undefined' ? `${window.location.origin}/mobile/scanner` : '';
   
+  // Order status options from API (admin-configured)
+  const { data: statusOptionsData } = useQuery({
+    queryKey: ['order-status-options'],
+    queryFn: () => api.getOrderStatusOptions(),
+  });
+  const orderStatusList = statusOptionsData?.statuses?.length ? statusOptionsData.statuses : DEFAULT_ORDER_STATUSES;
+
   // Fetch orders list with pagination
   const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({
     queryKey: ['orders', currentPage, statusFilter],
@@ -639,8 +646,8 @@ export default function OrdersPage() {
                   className="h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
                   <option value="">All Status</option>
-                  {ORDER_STATUSES.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
+                  {orderStatusList.map((s: string) => (
+                    <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
               </div>
@@ -706,8 +713,8 @@ export default function OrdersPage() {
                             STATUS_COLORS[order.status] || 'bg-gray-100'
                           )}
                         >
-                          {ORDER_STATUSES.map(s => (
-                            <option key={s.value} value={s.value}>{s.label}</option>
+                          {orderStatusList.map((s: string) => (
+                            <option key={s} value={s}>{s}</option>
                           ))}
                         </select>
                         <div className="text-sm text-muted-foreground hidden md:flex items-center gap-1">
@@ -777,6 +784,7 @@ export default function OrdersPage() {
         <OrderDetailView
           order={selectedOrder}
           storeSettings={storeSettings}
+          orderStatusList={orderStatusList}
           onBack={() => setSelectedOrder(null)}
           onPrintInvoice={handlePrintInvoice}
           onPrintLabel={handlePrintLabel}
@@ -785,6 +793,15 @@ export default function OrdersPage() {
           onStatusChange={(status: string) => {
             updateStatusMutation.mutate({ orderId: selectedOrder.id, status });
             setSelectedOrder({ ...selectedOrder, status });
+          }}
+          onShiprocketApproved={async () => {
+            await refetchOrders();
+            try {
+              const updated = await api.getOrder(selectedOrder.id);
+              setSelectedOrder(updated);
+            } catch {
+              // keep current
+            }
           }}
         />
       )}
@@ -1963,15 +1980,37 @@ function ReviewStep({
 function OrderDetailView({
   order,
   storeSettings,
+  orderStatusList = DEFAULT_ORDER_STATUSES,
   onBack,
   onPrintInvoice,
   onPrintLabel,
   onDownloadInvoice,
   onDownloadLabel,
   onStatusChange,
+  onShiprocketApproved,
 }: any) {
+  const [showShiprocketModal, setShowShiprocketModal] = useState(false);
+  const [shiprocketForm, setShiprocketForm] = useState({
+    package_length: 10,
+    package_width: 10,
+    package_height: 5,
+    package_weight: 0.5,
+    pickup_location: 'Primary',
+  });
+  const approveShiprocketMutation = useMutation({
+    mutationFn: () => api.approveOrderShiprocket(order.id, shiprocketForm),
+    onSuccess: () => {
+      toast({ title: 'Shiprocket shipment created', variant: 'success' });
+      setShowShiprocketModal(false);
+      onShiprocketApproved?.();
+    },
+    onError: (err: any) => {
+      toast({ title: err.response?.data?.detail || 'Failed to create shipment', variant: 'destructive' });
+    },
+  });
   const shipping = order.shipping_info || {};
   const items = order.items || [];
+  const canApproveShiprocket = !order.shiprocket_order_id && order.payment_status === 'success';
   
   return (
     <motion.div
@@ -2002,10 +2041,23 @@ function OrderDetailView({
                   STATUS_COLORS[order.status] || 'bg-gray-100'
                 )}
               >
-                {ORDER_STATUSES.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
+                {orderStatusList.map((s: string) => (
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
+              {canApproveShiprocket && (
+                <Button
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={() => setShowShiprocketModal(true)}
+                >
+                  <Truck className="w-4 h-4 mr-1" />
+                  Approve Shiprocket
+                </Button>
+              )}
+              {order.tracking_id && (
+                <span className="text-xs text-muted-foreground">Track: {order.tracking_id}</span>
+              )}
               {/* Actions Dropdown */}
               <div className="relative group">
                 <Button variant="outline" className="gap-2">
@@ -2148,6 +2200,81 @@ function OrderDetailView({
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showShiprocketModal} onOpenChange={setShowShiprocketModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Approve with Shiprocket</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-4">Enter package dimensions for shipment.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium">Length (cm)</label>
+              <Input
+                type="number"
+                min={1}
+                step={0.5}
+                value={shiprocketForm.package_length}
+                onChange={(e) => setShiprocketForm((f) => ({ ...f, package_length: Number(e.target.value) || 10 }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Width (cm)</label>
+              <Input
+                type="number"
+                min={1}
+                step={0.5}
+                value={shiprocketForm.package_width}
+                onChange={(e) => setShiprocketForm((f) => ({ ...f, package_width: Number(e.target.value) || 10 }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Height (cm)</label>
+              <Input
+                type="number"
+                min={1}
+                step={0.5}
+                value={shiprocketForm.package_height}
+                onChange={(e) => setShiprocketForm((f) => ({ ...f, package_height: Number(e.target.value) || 5 }))}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Weight (kg)</label>
+              <Input
+                type="number"
+                min={0.1}
+                step={0.1}
+                value={shiprocketForm.package_weight}
+                onChange={(e) => setShiprocketForm((f) => ({ ...f, package_weight: Number(e.target.value) || 0.5 }))}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Pickup location</label>
+            <Input
+              value={shiprocketForm.pickup_location}
+              onChange={(e) => setShiprocketForm((f) => ({ ...f, pickup_location: e.target.value }))}
+              className="mt-1"
+            />
+          </div>
+          <div className="flex gap-2 pt-4">
+            <Button variant="outline" onClick={() => setShowShiprocketModal(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              disabled={approveShiprocketMutation.isPending}
+              onClick={() => approveShiprocketMutation.mutate()}
+            >
+              {approveShiprocketMutation.isPending ? 'Creating…' : 'Create Shipment'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 }
