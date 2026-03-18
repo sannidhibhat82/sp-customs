@@ -95,11 +95,14 @@ def _product_to_external_dict(
 
         image_src = v_primary_image_url or primary_image_src
 
-        # Quantity from variant inventory if available
-        quantity = 0
+        # Quantity from variant inventory if available.
+        # External integrations expect quantity to be non-zero, so we default to 1.
+        quantity = 1
         if getattr(v, "inventory", None):
             inv: VariantInventory = v.inventory
             quantity = getattr(inv, "available_quantity", None) or inv.quantity or 0
+            if quantity <= 0:
+                quantity = 1
 
         variant_items.append(
             {
@@ -122,10 +125,12 @@ def _product_to_external_dict(
 
     # If product has no variants, return a single default variant so `variants` is never empty.
     if not variant_items:
-        product_qty = 0
+        product_qty = 1
         if getattr(product, "inventory", None):
             inv = product.inventory
             product_qty = getattr(inv, "available_quantity", None) or inv.quantity or 0
+            if product_qty <= 0:
+                product_qty = 1
 
         variant_items = [
             {
