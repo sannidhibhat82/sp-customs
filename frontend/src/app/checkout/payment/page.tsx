@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -11,7 +11,7 @@ import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
 
-export default function CheckoutPaymentPage() {
+function CheckoutPaymentContent() {
   const [mounted, setMounted] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -40,7 +40,6 @@ export default function CheckoutPaymentPage() {
     },
   });
 
-  // If already paid, redirect to success
   useEffect(() => {
     if (order?.payment_status === 'success') {
       router.replace(`/order/success?order_id=${order.uuid}`);
@@ -120,5 +119,27 @@ export default function CheckoutPaymentPage() {
       </div>
       <Footer />
     </div>
+  );
+}
+
+function PaymentFallback() {
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="pt-24 pb-12 container-wide">
+        <div className="max-w-lg mx-auto text-center py-12">
+          <div className="animate-pulse h-32 rounded-xl bg-secondary/30" />
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+export default function CheckoutPaymentPage() {
+  return (
+    <Suspense fallback={<PaymentFallback />}>
+      <CheckoutPaymentContent />
+    </Suspense>
   );
 }

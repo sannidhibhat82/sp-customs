@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, CreditCard } from 'lucide-react';
@@ -47,7 +47,7 @@ function useScript(src: string) {
   return { loaded, error };
 }
 
-export default function ShiprocketPayPage() {
+function ShiprocketPayContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderUuid = searchParams.get('order_uuid') || '';
@@ -56,7 +56,6 @@ export default function ShiprocketPayPage() {
     'https://checkout-ui.shiprocket.com/assets/js/channels/shopify.js'
   );
 
-  // Load Shiprocket stylesheet once (best-effort)
   useEffect(() => {
     const href = 'https://checkout-ui.shiprocket.com/assets/styles/shopify.css';
     const existing = document.querySelector(`link[href="${href}"]`);
@@ -185,3 +184,24 @@ export default function ShiprocketPayPage() {
   );
 }
 
+function PayFallback() {
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="pt-24 pb-12 container-wide">
+        <div className="max-w-lg mx-auto text-center py-12">
+          <div className="animate-pulse h-32 rounded-xl bg-secondary/30" />
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+export default function ShiprocketPayPage() {
+  return (
+    <Suspense fallback={<PayFallback />}>
+      <ShiprocketPayContent />
+    </Suspense>
+  );
+}

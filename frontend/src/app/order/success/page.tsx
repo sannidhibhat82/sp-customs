@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -9,7 +10,7 @@ import { Header, Footer } from '@/components/public';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
-export default function OrderSuccessPage() {
+function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('order_id');
 
@@ -91,5 +92,27 @@ export default function OrderSuccessPage() {
       </div>
       <Footer />
     </div>
+  );
+}
+
+function SuccessFallback() {
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="pt-24 pb-12 container-wide">
+        <div className="max-w-lg mx-auto text-center py-12">
+          <div className="animate-pulse h-32 rounded-xl bg-secondary/30" />
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+export default function OrderSuccessPage() {
+  return (
+    <Suspense fallback={<SuccessFallback />}>
+      <OrderSuccessContent />
+    </Suspense>
   );
 }

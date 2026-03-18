@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { toast } from '@/components/ui/use-toast';
 
-export default function ShiprocketRedirectPage() {
+function ShiprocketRedirectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -109,3 +109,24 @@ export default function ShiprocketRedirectPage() {
   );
 }
 
+function RedirectFallback() {
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="pt-24 pb-12 container-wide">
+        <div className="max-w-lg mx-auto text-center py-12">
+          <div className="animate-pulse h-32 rounded-xl bg-secondary/30" />
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
+}
+
+export default function ShiprocketRedirectPage() {
+  return (
+    <Suspense fallback={<RedirectFallback />}>
+      <ShiprocketRedirectContent />
+    </Suspense>
+  );
+}
