@@ -19,6 +19,7 @@ from app.schemas.variant import (
 from app.services.auth import get_admin_user, get_current_user
 from app.services.image_storage import get_image_storage
 from app.services.barcode_generator import BarcodeGenerator
+from app.services.shiprocket_catalog import sync_shiprocket_custom_product_and_collection
 from app.models.user import User
 import re
 
@@ -324,6 +325,12 @@ async def update_variant(
     
     await db.commit()
     await db.refresh(variant)
+
+    # Shiprocket catalog push (best effort).
+    try:
+        await sync_shiprocket_custom_product_and_collection(db=db, product_id=variant.product_id)
+    except Exception:
+        pass
     
     return VariantResponse(
         id=variant.id,
@@ -591,6 +598,17 @@ async def update_variant_inventory(
     
     await db.commit()
     await db.refresh(inventory)
+
+    # Shiprocket catalog push (best effort), because Shiprocket uses variant quantity.
+    try:
+        # inventory is variant_inventory; we need its parent variant_id to fetch product.
+        # We re-fetch the variant to get product_id safely.
+        result = await db.execute(select(ProductVariant.product_id).where(ProductVariant.id == variant_id))
+        product_id = result.scalar_one_or_none()
+        if product_id:
+            await sync_shiprocket_custom_product_and_collection(db=db, product_id=product_id)
+    except Exception:
+        pass
     
     return VariantInventoryInfo(
         quantity=inventory.quantity,

@@ -22,6 +22,7 @@ from app.schemas.product import (
 from app.schemas.common import PaginatedResponse
 from app.services.auth import get_admin_user, get_current_user
 from app.services.event_service import EventService
+from app.services.shiprocket_catalog import sync_shiprocket_custom_product_and_collection
 from app.services.barcode_generator import BarcodeGenerator
 from app.services.excel_import import parse_inventory_excel
 from app.models.user import User
@@ -689,6 +690,14 @@ async def update_product(
     )
     
     await db.commit()
+
+    # Shiprocket catalog push (custom product + collection) - best effort.
+    # This keeps Shiprocket in sync when product price/metadata changes.
+    try:
+        await sync_shiprocket_custom_product_and_collection(db=db, product_id=product.id)
+    except Exception:
+        # Never fail the product update due to Shiprocket connectivity/auth issues.
+        pass
     
     # Reload with all relationships
     result = await db.execute(

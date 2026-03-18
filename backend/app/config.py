@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     SHIPROCKET_CHECKOUT_SESSION_URL: Optional[str] = None
     # Secret to verify webhook signature (set from SR Checkout dashboard; can be same as secret key)
     SHIPROCKET_CHECKOUT_WEBHOOK_SECRET: Optional[str] = None
+
+    # Shiprocket custom catalog push (SRC Custom Integration):
+    # POST https://checkout-api.shiprocket.com/wh/v1/custom/product
+    # POST https://checkout-api.shiprocket.com/wh/v1/custom/collection
+    SHIPROCKET_CUSTOM_CATALOG_ENABLED: bool = False
+    SHIPROCKET_CUSTOM_CATALOG_BASE_URL: str = "https://checkout-api.shiprocket.com"
     # Frontend base URL for success/cancel redirects (e.g. https://yoursite.com)
     FRONTEND_BASE_URL: str = "http://localhost:3000"
     # Backend base URL for webhook URL (e.g. https://api.yoursite.com - must be publicly reachable)
