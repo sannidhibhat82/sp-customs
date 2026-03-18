@@ -75,7 +75,11 @@ def _product_to_external_dict(
     variant_items: List[Dict[str, Any]] = []
     for v in variants:
         price = v.price if v.price is not None else product.price
-        compare_at_price = v.compare_at_price if getattr(v, "compare_at_price", None) is not None else product.compare_at_price
+        compare_at_price = (
+            v.compare_at_price
+            if getattr(v, "compare_at_price", None) is not None
+            else product.compare_at_price
+        )
 
         grams = 0
         weight = 0.0
@@ -116,6 +120,34 @@ def _product_to_external_dict(
             }
         )
 
+    # If product has no variants, return a single default variant so `variants` is never empty.
+    if not variant_items:
+        product_qty = 0
+        if getattr(product, "inventory", None):
+            inv = product.inventory
+            product_qty = getattr(inv, "available_quantity", None) or inv.quantity or 0
+
+        variant_items = [
+            {
+                "id": product.id,
+                "title": product.name,
+                "price": _decimal_to_str(product.price) or "0.00",
+                "compare_at_price": _decimal_to_str(product.compare_at_price)
+                if product.compare_at_price is not None
+                else None,
+                "sku": product.sku,
+                "created_at": product.created_at.isoformat() if product.created_at else None,
+                "updated_at": product.updated_at.isoformat() if product.updated_at else None,
+                "taxable": True,
+                "option_values": {},
+                "grams": 0,
+                "image": {"src": primary_image_src} if primary_image_src else None,
+                "weight": 0.0,
+                "weight_unit": "kg",
+                "quantity": product_qty,
+            }
+        ]
+
     out["variants"] = variant_items
     out["image"] = {"src": primary_image_src} if primary_image_src else None
 
@@ -124,7 +156,7 @@ def _product_to_external_dict(
 
 @router.get("/external/products")
 async def external_products(
-    page: int = Query(0, ge=0, description="Zero-based page index expected by external integrations"),
+    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     limit: Optional[int] = Query(
         None,
         ge=1,
@@ -140,7 +172,7 @@ async def external_products(
     Example:
     GET /external/products?page=0&limit=2
     """
-    internal_page = page + 1
+    internal_page = page
 
     base_query = (
         select(Product)
@@ -148,6 +180,7 @@ async def external_products(
             selectinload(Product.category),
             selectinload(Product.brand),
             selectinload(Product.images),
+            selectinload(Product.inventory),
             selectinload(Product.variants)
             .selectinload(ProductVariant.images),
             selectinload(Product.variants)
@@ -197,7 +230,7 @@ async def external_products(
 
 @router.get("/external/collections")
 async def external_collections(
-    page: int = Query(0, ge=0, description="Zero-based page index expected by external integrations"),
+    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     limit: Optional[int] = Query(
         None,
         ge=1,
@@ -213,7 +246,7 @@ async def external_collections(
     Example:
     GET /external/collections?page=0&limit=2
     """
-    internal_page = page + 1
+    internal_page = page
 
     base_query = select(Category).where(Category.is_active == True)
 
@@ -262,8 +295,13 @@ async def external_collections(
 @router.get("/external/collections/{collection_id}/products")
 async def external_products_by_collection(
     collection_id: int,
-    page: int = Query(0, ge=0, description="Zero-based page index expected by external integrations"),
-    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    limit: Optional[int] = Query(
+        None,
+        ge=1,
+        le=100,
+        description="Items per page. If omitted, all products are returned.",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -273,7 +311,7 @@ async def external_products_by_collection(
     Example:
     GET /external/collections/1234/products?page=0&limit=1
     """
-    internal_page = page + 1
+    internal_page = page
 
     base_query = (
         select(Product)
@@ -281,6 +319,7 @@ async def external_products_by_collection(
             selectinload(Product.category),
             selectinload(Product.brand),
             selectinload(Product.images),
+            selectinload(Product.inventory),
             selectinload(Product.variants)
             .selectinload(ProductVariant.images),
             selectinload(Product.variants)
@@ -297,8 +336,11 @@ async def external_products_by_collection(
     )
     total = total_result.scalar() or 0
 
-    offset = (internal_page - 1) * limit
-    query = base_query.offset(offset).limit(limit)
+    if limit is not None:
+        offset = (internal_page - 1) * limit
+        query = base_query.offset(offset).limit(limit)
+    else:
+        query = base_query
     result = await db.execute(query)
     products = result.scalars().unique().all()
 
