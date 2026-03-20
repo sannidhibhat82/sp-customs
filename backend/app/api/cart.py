@@ -40,23 +40,52 @@ async def _get_or_create_cart(
     guest_session_id: Optional[str],
 ) -> Cart:
     """Get active cart for user or guest, or create one."""
+    carts = []
     if user_id:
         result = await db.execute(
-            _cart_selector().where(Cart.user_id == user_id, Cart.status == "active")
+            _cart_selector()
+            .where(Cart.user_id == user_id, Cart.status == "active")
+            .order_by(Cart.updated_at.desc(), Cart.id.desc())
         )
-        cart = result.scalar_one_or_none()
+        carts = result.scalars().unique().all()
     elif guest_session_id:
         result = await db.execute(
             _cart_selector().where(
                 Cart.guest_session_id == guest_session_id,
                 Cart.status == "active",
-            )
+            ).order_by(Cart.updated_at.desc(), Cart.id.desc())
         )
-        cart = result.scalar_one_or_none()
+        carts = result.scalars().unique().all()
     else:
         raise HTTPException(status_code=400, detail="Provide Authorization or X-Guest-Session-Id")
-    if cart:
-        return cart
+
+    if carts:
+        # Data hygiene: if duplicate active carts exist, merge all items into the newest cart
+        # and archive the duplicates so future lookups are stable.
+        primary = carts[0]
+        if len(carts) > 1:
+            merged: dict[tuple[int, Optional[int]], CartItem] = {}
+            for item in primary.items:
+                merged[(item.product_id, item.variant_id)] = item
+
+            for duplicate in carts[1:]:
+                for item in duplicate.items:
+                    key = (item.product_id, item.variant_id)
+                    existing = merged.get(key)
+                    if existing:
+                        existing.quantity += item.quantity
+                        # Keep latest snapshot if available
+                        if item.price_snapshot:
+                            existing.price_snapshot = item.price_snapshot
+                        await db.delete(item)
+                    else:
+                        item.cart_id = primary.id
+                        merged[key] = item
+                duplicate.status = "converted"
+            await db.flush()
+
+        return primary
+
     cart = Cart(user_id=user_id, guest_session_id=guest_session_id, status="active")
     db.add(cart)
     await db.flush()
