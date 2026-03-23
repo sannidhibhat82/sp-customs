@@ -4,6 +4,7 @@ Orders API - Order management and shipping (admin + customer my-orders).
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
@@ -629,7 +630,12 @@ async def approve_order_shiprocket(
     except ImportError:
         raise HTTPException(status_code=503, detail="Shiprocket not configured")
     order_items_sr = [
-        {"name": oi.product_name, "sku": oi.product_sku, "units": oi.quantity, "price": float(oi.unit_price)}
+        {
+            "name": oi.product_name,
+            "sku": oi.product_sku,
+            "units": oi.quantity,
+            "selling_price": float(oi.unit_price),
+        }
         for oi in order.items
     ]
     payload = build_order_payload(
@@ -644,14 +650,29 @@ async def approve_order_shiprocket(
         country=addr.country,
         order_items=order_items_sr,
         total_amount=float(order.total),
-        payment_method="prepaid",
+        payment_method="Prepaid",
         weight=body.package_weight,
         length=body.package_length,
         width=body.package_width,
         height=body.package_height,
         pickup_location=body.pickup_location,
     )
-    sr_resp = await sr_create_order(payload)
+    try:
+        sr_resp = await sr_create_order(payload)
+    except httpx.HTTPStatusError as e:
+        shiprocket_msg = ""
+        try:
+            shiprocket_msg = e.response.text
+        except Exception:
+            shiprocket_msg = str(e)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Shiprocket order create failed ({e.response.status_code}): {shiprocket_msg}",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Shiprocket order create failed: {e}")
     if sr_resp.get("order_id"):
         order.shiprocket_order_id = str(sr_resp["order_id"])
     order.shipment_status = "created"

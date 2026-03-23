@@ -226,7 +226,7 @@ def build_order_payload(
     country: str,
     order_items: List[Dict[str, Any]],
     total_amount: float,
-    payment_method: str = "prepaid",
+    payment_method: str = "Prepaid",
     weight: float = 0.5,
     length: float = 10.0,
     width: float = 10.0,
@@ -235,13 +235,27 @@ def build_order_payload(
 ) -> Dict[str, Any]:
     """
     Build Shiprocket adhoc order payload.
-    payment_method: prepaid | COD
-    order_items: list of {name, sku, units, price} (Shiprocket uses 'price')
+    payment_method: Prepaid | COD
+    order_items: list of {name, sku, units, selling_price}
     """
+    normalized_items: List[Dict[str, Any]] = []
+    for it in order_items:
+        normalized_items.append(
+            {
+                "name": it.get("name", ""),
+                "sku": it.get("sku", ""),
+                "units": int(it.get("units", 1) or 1),
+                # Shiprocket adhoc endpoint expects selling_price
+                "selling_price": float(it.get("selling_price", it.get("price", 0)) or 0),
+            }
+        )
+
+    pm = (payment_method or "Prepaid").strip().lower()
+    payment_method_value = "COD" if pm in ("cod", "cash_on_delivery", "cash on delivery") else "Prepaid"
+
     return {
         "order_id": order_number,
         "order_date": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "channel_id": "",
         "billing_customer_name": customer_name,
         "billing_last_name": "",
         "billing_address": address,
@@ -261,12 +275,18 @@ def build_order_payload(
         "shipping_pincode": pincode,
         "shipping_state": state,
         "shipping_country": country,
+        "shipping_email": customer_email,
         "shipping_phone": customer_phone,
-        "order_items": order_items,
-        "payment_method": payment_method,
+        "order_items": normalized_items,
+        "payment_method": payment_method_value,
+        "shipping_charges": 0,
+        "giftwrap_charges": 0,
+        "transaction_charges": 0,
+        "total_discount": 0,
         "sub_total": total_amount,
         "length": length,
-        "width": width,
+        # Shiprocket expects breadth, not width
+        "breadth": width,
         "height": height,
         "weight": weight,
         "pickup_location": pickup_location,
