@@ -73,6 +73,7 @@ async def _request(
     """Authenticated request to Shiprocket API."""
     token = await get_token()
     url = f"{settings.SHIPROCKET_BASE_URL}{path}"
+    print(f"[SHIPROCKET][REQ] {method} {url} params={params} json={json}")
     async with httpx.AsyncClient() as client:
         r = await client.request(
             method,
@@ -82,6 +83,7 @@ async def _request(
             params=params,
             timeout=30.0,
         )
+        print(f"[SHIPROCKET][RES] {method} {url} status={r.status_code} body={r.text[:2000] if r.text else ''}")
         r.raise_for_status()
         return r.json() if r.content else {}
 
@@ -188,7 +190,7 @@ async def generate_label(shipment_id: str) -> Dict[str, Any]:
     )
 
 
-async def generate_invoice(shipment_id: str) -> Dict[str, Any]:
+async def generate_invoice(order_id: str) -> Dict[str, Any]:
     """
     Generate invoice (PDF) via Shiprocket.
     POST /orders/print/invoice
@@ -196,7 +198,7 @@ async def generate_invoice(shipment_id: str) -> Dict[str, Any]:
     return await _request(
         "POST",
         "/orders/print/invoice",
-        json={"shipment_id": [shipment_id]},
+        json={"ids": [order_id]},
     )
 
 

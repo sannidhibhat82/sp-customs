@@ -2085,7 +2085,7 @@ function OrderDetailView({
                 value={order.status}
                 onChange={(e) => onStatusChange(e.target.value)}
                 className={cn(
-                  "px-3 py-2 rounded-full text-sm font-medium border cursor-pointer",
+                  "px-3 py-2 rounded-full text-sm font-medium border cursor-pointer bg-background text-foreground",
                   STATUS_COLORS[order.status] || 'bg-gray-100'
                 )}
               >
@@ -2106,12 +2106,11 @@ function OrderDetailView({
               {!!order.shiprocket_order_id && (
                 <>
                   <Button variant="outline" size="sm" onClick={() => refreshShiprocketDocsMutation.mutate()}>
-                    Refresh Docs
+                    Sync Docs
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!order.shiprocket_shipment_id}
                     onClick={() => processShipmentMutation.mutate()}
                   >
                     Create Shipment
@@ -2220,6 +2219,9 @@ function OrderDetailView({
                 )}
                 {order.payment_info?.webhook_event && (
                   <p><span className="text-muted-foreground">Webhook Event:</span> {order.payment_info.webhook_event}</p>
+                )}
+                {!order.payment_info?.razorpay_order_id && !order.payment_info?.razorpay_payment_id && (
+                  <p className="text-xs text-muted-foreground">Razorpay IDs not found on this order record.</p>
                 )}
               </div>
             </div>

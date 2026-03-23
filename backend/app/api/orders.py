@@ -716,6 +716,14 @@ async def approve_order_shiprocket(
         if sid:
             order.shiprocket_shipment_id = str(sid)
             awb_or_tracking = sr_resp["shipments"][0].get("awb_code") or sr_resp["shipments"][0].get("tracking_no") or sr_resp["shipments"][0].get("tracking_number")
+    if not order.shiprocket_shipment_id:
+        fallback_sid = (
+            sr_resp.get("shipment_id")
+            or (sr_resp.get("data") or {}).get("shipment_id")
+            or (sr_resp.get("response") or {}).get("shipment_id")
+        )
+        if fallback_sid:
+            order.shiprocket_shipment_id = str(fallback_sid)
     if awb_or_tracking:
         order.tracking_id = str(awb_or_tracking)
     status_list = [s.strip() for s in (getattr(settings, "ORDER_STATUS_LIST", "") or "Processing").split(",") if s.strip()]
@@ -723,7 +731,10 @@ async def approve_order_shiprocket(
     try:
         if order.shiprocket_shipment_id:
             label_resp = await generate_label(order.shiprocket_shipment_id)
-            invoice_resp = await generate_invoice(order.shiprocket_shipment_id)
+            if order.shiprocket_order_id:
+                invoice_resp = await generate_invoice(order.shiprocket_order_id)
+            else:
+                invoice_resp = {}
             sd = order.shipping_details or {}
             sd["shiprocket_label_url"] = label_resp.get("label_url")
             sd["shiprocket_invoice_url"] = invoice_resp.get("invoice_url")
@@ -748,7 +759,7 @@ async def process_shiprocket_shipment(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     if not order.shiprocket_shipment_id:
-        raise HTTPException(status_code=400, detail="Shiprocket shipment is not created yet")
+        raise HTTPException(status_code=400, detail="Shiprocket shipment_id missing. Please update/refresh Shiprocket order first.")
 
     try:
         from app.services.shiprocket import assign_awb, create_pickup
@@ -785,12 +796,12 @@ async def refresh_shiprocket_docs(
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    if not order.shiprocket_shipment_id:
-        raise HTTPException(status_code=400, detail="Shiprocket shipment is not created yet")
+    if not order.shiprocket_order_id:
+        raise HTTPException(status_code=400, detail="Shiprocket order is not created yet")
     try:
         from app.services.shiprocket import generate_label, generate_invoice
-        label_resp = await generate_label(str(order.shiprocket_shipment_id))
-        invoice_resp = await generate_invoice(str(order.shiprocket_shipment_id))
+        label_resp = await generate_label(str(order.shiprocket_shipment_id)) if order.shiprocket_shipment_id else {}
+        invoice_resp = await generate_invoice(str(order.shiprocket_order_id))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Shiprocket docs generation failed: {e}")
     sd = order.shipping_details or {}
