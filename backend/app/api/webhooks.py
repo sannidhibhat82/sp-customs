@@ -14,7 +14,8 @@ from app.models.order import Order
 from app.config import settings
 from app.api.checkout import _process_payment_success
 
-logger = logging.getLogger(__name__)
+# Use Uvicorn's logger so messages appear in systemd journal alongside access logs.
+logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter()
 
