@@ -68,8 +68,14 @@ class Settings(BaseSettings):
     SHIPROCKET_CUSTOM_CATALOG_BASE_URL: str = "https://checkout-api.shiprocket.com"
     # Frontend base URL for success/cancel redirects (e.g. https://yoursite.com)
     FRONTEND_BASE_URL: str = "http://localhost:3000"
-    # Backend base URL for webhook URL (e.g. https://api.yoursite.com - must be publicly reachable)
-    BACKEND_BASE_URL: str = "http://localhost:8000"
+
+    # Razorpay checkout
+    RAZORPAY_ENABLED: bool = False
+    RAZORPAY_KEY_ID: Optional[str] = None
+    RAZORPAY_KEY_SECRET: Optional[str] = None
+    RAZORPAY_CURRENCY: str = "INR"
+    RAZORPAY_COMPANY_NAME: str = "SP Customs"
+    RAZORPAY_WEBHOOK_SECRET: Optional[str] = None
     
     # Feature flag: enable Book Now / checkout flow
     ENABLE_BOOK_NOW: bool = True

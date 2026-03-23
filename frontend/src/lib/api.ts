@@ -985,17 +985,31 @@ class ApiClient {
     return response.data;
   }
 
-  // ============ Shiprocket Checkout (Headless) ============
+  // ============ Razorpay Checkout ============
 
-  async getShiprocketCheckoutToken(orderUuid: string) {
-    const response = await this.client.post('/checkout/shiprocket/token', null, {
+  async createRazorpayOrder(orderUuid: string) {
+    const response = await this.client.post('/checkout/razorpay/order', null, {
       params: { order_uuid: orderUuid },
     });
-    return response.data;
+    return response.data as {
+      order_uuid: string;
+      razorpay_order_id: string;
+      amount: number;
+      currency: string;
+      key_id: string;
+      name: string;
+      description: string;
+      prefill: { name?: string; email?: string; contact?: string };
+    };
   }
 
-  async confirmShiprocketRedirect(params: { order_uuid: string; oid: string; ost: string }) {
-    const response = await this.client.post('/checkout/shiprocket/confirm', null, { params });
+  async verifyRazorpayPayment(data: {
+    order_uuid: string;
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }) {
+    const response = await this.client.post('/checkout/razorpay/verify', data);
     return response.data;
   }
 

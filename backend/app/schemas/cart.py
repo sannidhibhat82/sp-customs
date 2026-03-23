@@ -97,7 +97,3 @@ class CheckoutCreateResponse(BaseModel):
     payment_intent_id: Optional[str] = None
     client_secret: Optional[str] = None
     redirect_url: Optional[str] = None
-    # Shiprocket SR Checkout (headless) fields
-    shiprocket_token: Optional[str] = None
-    shiprocket_token_expires_at: Optional[str] = None
-    shiprocket_checkout_order_id: Optional[str] = None

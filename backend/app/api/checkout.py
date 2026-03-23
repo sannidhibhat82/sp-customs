@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
@@ -33,6 +34,24 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class RazorpayCreateOrderResponse(BaseModel):
+    order_uuid: str
+    razorpay_order_id: str
+    amount: int
+    currency: str
+    key_id: str
+    name: str
+    description: str
+    prefill: Dict[str, str]
+
+
+class RazorpayVerifyRequest(BaseModel):
+    order_uuid: str
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
 
 
 async def _process_payment_success(order: Order, db: AsyncSession) -> None:
@@ -179,16 +198,6 @@ async def validate_checkout(
                         f"Available: {prod.inventory.quantity}, Requested: {item.quantity}"
                     )
     shipping_options: Optional[List[Dict[str, Any]]] = None
-    if settings.SHIPROCKET_EMAIL and not errors:
-        try:
-            from app.services.shiprocket import check_serviceability
-            pickup = settings.SHIPROCKET_PICKUP_PINCODE
-            delivery = "110001"  # Will be replaced with address.pincode at create
-            resp = await check_serviceability(pickup, delivery, 0.5, 0)
-            if resp.get("data", {}).get("available_courier_companies"):
-                shipping_options = resp["data"].get("available_courier_companies", [])[:5]
-        except Exception:
-            pass
     discount_pct = getattr(settings, "CUSTOMER_DISCOUNT_PERCENT", None) or 0
     return CheckoutValidateResponse(
         valid=len(errors) == 0,
@@ -370,57 +379,9 @@ async def create_checkout_order(
     await db.flush()
     await db.refresh(order)
 
-    # SR Checkout (Shiprocket payment gateway) - ref: Shiprocket Checkout Integration Guide
-    # When Shiprocket payment is not enabled, send user to our fallback payment page.
     redirect_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/checkout/payment?order_uuid={order.uuid}"
     payment_intent_id = None
     client_secret = None
-    shiprocket_token = None
-    shiprocket_token_expires_at = None
-    shiprocket_checkout_order_id = None
-
-    # Shiprocket SR Checkout (Headless token) flow:
-    # Create token server-side, then frontend calls HeadlessCheckout.addToCart(event, token, ...)
-    if settings.SHIPROCKET_CHECKOUT_ENABLED and settings.SHIPROCKET_CHECKOUT_API_KEY and settings.SHIPROCKET_CHECKOUT_SECRET_KEY:
-        from app.services.shiprocket import create_checkout_access_token
-
-        # Dedicated pay page that loads Shiprocket JS and initiates checkout
-        redirect_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/checkout/shiprocket/pay?order_uuid={order.uuid}"
-
-        # Build items from order/cart items. Shiprocket examples expect variant_id as string.
-        token_items: List[Dict[str, Any]] = []
-        for it in cart.items:
-            variant_or_product_id = it.variant_id or it.product_id
-            token_items.append({"variant_id": str(variant_or_product_id), "quantity": int(it.quantity)})
-
-        # Redirect/callback after payment (Shiprocket appends oid/ost). We include our order_uuid for correlation.
-        callback_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/checkout/shiprocket/redirect?order_uuid={order.uuid}"
-
-        try:
-            token_resp = await create_checkout_access_token(
-                items=token_items,
-                redirect_url=callback_url,
-                mobile_app=False,
-            )
-            result = token_resp.get("result") or {}
-            shiprocket_token = result.get("token")
-            shiprocket_token_expires_at = result.get("expires_at")
-            shiprocket_checkout_order_id = (result.get("data") or {}).get("order_id")
-            if shiprocket_token:
-                order.payment_info = {
-                    **(order.payment_info or {}),
-                    "shiprocket_token": shiprocket_token,
-                    "shiprocket_token_expires_at": shiprocket_token_expires_at,
-                    "shiprocket_checkout_order_id": str(shiprocket_checkout_order_id) if shiprocket_checkout_order_id else None,
-                }
-                await db.flush()
-            else:
-                # If Shiprocket responds but token missing, fall back
-                redirect_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/checkout/payment?order_uuid={order.uuid}"
-        except Exception as e:
-            # If token creation fails, fall back to internal payment page
-            logger.exception("Shiprocket checkout token generation failed order_id=%s: %s", order.id, e)
-            redirect_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/checkout/payment?order_uuid={order.uuid}"
 
     # Ensure redirect_url is absolute so frontend can do full redirect to payment or success
     if not redirect_url or not (redirect_url.startswith("http://") or redirect_url.startswith("https://")):
@@ -434,9 +395,6 @@ async def create_checkout_order(
         payment_intent_id=payment_intent_id,
         client_secret=client_secret,
         redirect_url=redirect_url,
-        shiprocket_token=shiprocket_token,
-        shiprocket_token_expires_at=shiprocket_token_expires_at,
-        shiprocket_checkout_order_id=str(shiprocket_checkout_order_id) if shiprocket_checkout_order_id else None,
     )
 
 
@@ -450,8 +408,6 @@ async def payment_success_webhook(
     Deducts inventory, creates Shiprocket order, generates label/invoice.
     Idempotent: if order already has payment_status=success, skip.
     """
-    if settings.SHIPROCKET_CHECKOUT_ENABLED:
-        raise HTTPException(status_code=400, detail="Manual payment confirmation is disabled when Shiprocket Checkout is enabled")
     result = await db.execute(
         select(Order)
         .options(selectinload(Order.items))
@@ -467,92 +423,108 @@ async def payment_success_webhook(
     return {"success": True, "order_id": order.id, "order_number": order.order_number}
 
 
-@router.post("/shiprocket/token")
-async def get_or_create_shiprocket_token(
+@router.post("/razorpay/order", response_model=RazorpayCreateOrderResponse)
+async def create_razorpay_order(
     order_uuid: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Idempotently create (or return cached) Shiprocket SR Checkout headless token for an order.
-    Used by frontend pay page.
-    """
-    result = await db.execute(select(Order).options(selectinload(Order.items)).where(Order.uuid == order_uuid))
+    if not settings.RAZORPAY_ENABLED:
+        raise HTTPException(status_code=503, detail="Razorpay is disabled")
+    if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        raise HTTPException(status_code=503, detail="Razorpay credentials are missing")
+
+    result = await db.execute(select(Order).where(Order.uuid == order_uuid))
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     if order.payment_status == "success":
-        return {"ok": True, "paid": True}
-    if not settings.SHIPROCKET_CHECKOUT_ENABLED:
-        raise HTTPException(status_code=400, detail="Shiprocket Checkout is disabled")
+        raise HTTPException(status_code=400, detail="Order is already paid")
+
+    amount_subunits = int((Decimal(str(order.total)) * Decimal("100")).quantize(Decimal("1")))
+    currency = (settings.RAZORPAY_CURRENCY or "INR").upper()
+
+    from app.services.razorpay import create_order as razorpay_create_order
+    try:
+        rp_order = await razorpay_create_order(
+            amount_subunits=amount_subunits,
+            currency=currency,
+            receipt=order.order_number,
+            notes={"order_uuid": order.uuid, "order_number": order.order_number},
+        )
+    except Exception as e:
+        logger.exception("Razorpay order creation failed for order_id=%s: %s", order.id, e)
+        raise HTTPException(status_code=502, detail="Unable to create Razorpay order")
+
+    razorpay_order_id = rp_order.get("id")
+    if not razorpay_order_id:
+        raise HTTPException(status_code=502, detail="Razorpay response missing order id")
 
     payment_info = order.payment_info or {}
-    existing_token = payment_info.get("shiprocket_token")
-    existing_expires_at = payment_info.get("shiprocket_token_expires_at")
-    existing_sr_oid = payment_info.get("shiprocket_checkout_order_id")
-    if existing_token:
-        return {
-            "ok": True,
-            "token": existing_token,
-            "expires_at": existing_expires_at,
-            "shiprocket_order_id": existing_sr_oid,
+    payment_info.update(
+        {
+            "gateway": "razorpay",
+            "status": "pending",
+            "razorpay_order_id": razorpay_order_id,
+            "razorpay_amount": amount_subunits,
+            "razorpay_currency": currency,
         }
-
-    from app.services.shiprocket import create_checkout_access_token
-
-    # We don't have cart here; use order items (variant_id if possible, else product_id)
-    token_items: List[Dict[str, Any]] = []
-    for it in order.items:
-        variant_or_product_id = it.variant_id or it.product_id or it.id
-        token_items.append({"variant_id": str(variant_or_product_id), "quantity": int(it.quantity)})
-
-    callback_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/checkout/shiprocket/redirect?order_uuid={order.uuid}"
-    token_resp = await create_checkout_access_token(items=token_items, redirect_url=callback_url, mobile_app=False)
-    result_obj = token_resp.get("result") or {}
-    token = result_obj.get("token")
-    expires_at = result_obj.get("expires_at")
-    shiprocket_order_id = (result_obj.get("data") or {}).get("order_id")
-    if not token:
-        raise HTTPException(status_code=502, detail="Shiprocket token generation failed")
-
-    order.payment_info = {
-        **payment_info,
-        "shiprocket_token": token,
-        "shiprocket_token_expires_at": expires_at,
-        "shiprocket_checkout_order_id": str(shiprocket_order_id) if shiprocket_order_id else None,
-    }
+    )
+    order.payment_info = payment_info
     await db.flush()
-    return {"ok": True, "token": token, "expires_at": expires_at, "shiprocket_order_id": shiprocket_order_id}
+
+    shipping_info = order.shipping_info or {}
+    return RazorpayCreateOrderResponse(
+        order_uuid=order.uuid,
+        razorpay_order_id=razorpay_order_id,
+        amount=amount_subunits,
+        currency=currency,
+        key_id=settings.RAZORPAY_KEY_ID,
+        name=settings.RAZORPAY_COMPANY_NAME or "SP Customs",
+        description=f"Order {order.order_number}",
+        prefill={
+            "name": str(shipping_info.get("customer_name") or ""),
+            "email": str(shipping_info.get("email") or ""),
+            "contact": str(shipping_info.get("phone") or ""),
+        },
+    )
 
 
-@router.post("/shiprocket/confirm")
-async def confirm_shiprocket_payment_redirect(
-    order_uuid: str = Query(...),
-    oid: str = Query(..., description="Shiprocket order id from redirect param `oid`"),
-    ost: str = Query(..., description="Shiprocket status from redirect param `ost` (e.g. SUCCESS)"),
+@router.post("/razorpay/verify")
+async def verify_razorpay_payment(
+    body: RazorpayVerifyRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Confirm payment based on Shiprocket redirect params.
-    We require `oid` to match the Shiprocket order id we received during token creation.
-    Then we mark payment success and deduct inventory.
-
-    Note: webhook is preferred for security; this is a pragmatic fallback.
-    """
-    result = await db.execute(select(Order).options(selectinload(Order.items)).where(Order.uuid == order_uuid))
+    result = await db.execute(select(Order).options(selectinload(Order.items)).where(Order.uuid == body.order_uuid))
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    if (ost or "").strip().upper() not in ("SUCCESS", "PAID", "COMPLETED"):
-        raise HTTPException(status_code=400, detail=f"Payment status not successful: {ost}")
-    payment_info = order.payment_info or {}
-    expected_oid = payment_info.get("shiprocket_checkout_order_id")
-    if expected_oid and str(expected_oid) != str(oid):
-        raise HTTPException(status_code=400, detail="Shiprocket order id mismatch")
     if order.payment_status == "success":
         return {"ok": True, "already": True}
+
+    payment_info = order.payment_info or {}
+    expected_rp_order_id = payment_info.get("razorpay_order_id")
+    if expected_rp_order_id and str(expected_rp_order_id) != str(body.razorpay_order_id):
+        raise HTTPException(status_code=400, detail="Razorpay order mismatch")
+
+    from app.services.razorpay import verify_signature as razorpay_verify_signature
+    if not razorpay_verify_signature(
+        order_id=body.razorpay_order_id,
+        payment_id=body.razorpay_payment_id,
+        signature=body.razorpay_signature,
+    ):
+        raise HTTPException(status_code=400, detail="Invalid payment signature")
+
     await _process_payment_success(order, db)
     payment_info = order.payment_info or {}
-    payment_info["shiprocket_checkout_order_id"] = str(oid)
+    payment_info.update(
+        {
+            "gateway": "razorpay",
+            "status": "paid",
+            "razorpay_order_id": body.razorpay_order_id,
+            "razorpay_payment_id": body.razorpay_payment_id,
+            "razorpay_signature": body.razorpay_signature,
+        }
+    )
     order.payment_info = payment_info
     await db.flush()
     return {"ok": True, "success": True, "order_id": order.id, "order_number": order.order_number}
