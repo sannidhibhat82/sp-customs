@@ -1982,14 +1982,11 @@ function OrderDetailView({
   storeSettings,
   orderStatusList = DEFAULT_ORDER_STATUSES,
   onBack,
-  onPrintInvoice,
-  onPrintLabel,
-  onDownloadInvoice,
-  onDownloadLabel,
   onStatusChange,
   onShiprocketApproved,
 }: any) {
   const [showShiprocketModal, setShowShiprocketModal] = useState(false);
+  const [showShiprocketUpdateModal, setShowShiprocketUpdateModal] = useState(false);
   const [shiprocketForm, setShiprocketForm] = useState({
     package_length: 10,
     package_width: 10,
@@ -2014,6 +2011,10 @@ function OrderDetailView({
   const canApproveShiprocket = !order.shiprocket_order_id && order.payment_status === 'success';
   const labelUrl = shippingDetails.shiprocket_label_url;
   const invoiceUrl = shippingDetails.shiprocket_invoice_url;
+  const shipmentStatusLc = String(order.shipment_status || '').toLowerCase();
+  const isShippedLike = ['shipped', 'in transit', 'out for delivery', 'delivered', 'picked up'].includes(shipmentStatusLc);
+  const canOpenInvoice = !!order.shiprocket_order_id && !!invoiceUrl;
+  const canOpenLabel = !!order.shiprocket_order_id && !!labelUrl && isShippedLike;
 
   const refreshShiprocketDocsMutation = useMutation({
     mutationFn: () => api.refreshShiprocketDocs(order.id),
@@ -2107,10 +2108,15 @@ function OrderDetailView({
                   <Button variant="outline" size="sm" onClick={() => refreshShiprocketDocsMutation.mutate()}>
                     Refresh Docs
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => processShipmentMutation.mutate()}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!order.shiprocket_shipment_id}
+                    onClick={() => processShipmentMutation.mutate()}
+                  >
                     Create Shipment
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => updateShiprocketMutation.mutate()}>
+                  <Button variant="outline" size="sm" onClick={() => setShowShiprocketUpdateModal(true)}>
                     Update SR Order
                   </Button>
                   <Button variant="destructive" size="sm" onClick={() => cancelShiprocketMutation.mutate()}>
@@ -2122,49 +2128,38 @@ function OrderDetailView({
                 <span className="text-xs text-muted-foreground">Track: {order.tracking_id}</span>
               )}
               {/* Actions Dropdown */}
+              {(canOpenInvoice || canOpenLabel) && (
               <div className="relative group">
                 <Button variant="outline" className="gap-2">
                   <MoreVertical className="w-4 h-4" />
-                  Actions
+                  Shiprocket Docs
                   <ChevronDown className="w-3 h-3" />
                 </Button>
                 <div className="absolute right-0 mt-1 w-56 bg-card border border-border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <div className="px-3 py-2 border-b border-border bg-secondary/50 rounded-t-lg">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Print</span>
-                  </div>
-                  <button
-                    onClick={() => invoiceUrl ? window.open(invoiceUrl, '_blank') : onPrintInvoice()}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
-                  >
-                    <Printer className="w-4 h-4 text-muted-foreground" />
-                    <span>Print Invoice</span>
-                  </button>
-                  <button
-                    onClick={() => labelUrl ? window.open(labelUrl, '_blank') : onPrintLabel()}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
-                  >
-                    <Printer className="w-4 h-4 text-muted-foreground" />
-                    <span>Print Label</span>
-                  </button>
                   <div className="px-3 py-2 border-t border-b border-border bg-secondary/50">
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Download</span>
                   </div>
-                  <button
-                    onClick={() => invoiceUrl ? window.open(invoiceUrl, '_blank') : onDownloadInvoice()}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
-                  >
-                    <Download className="w-4 h-4 text-muted-foreground" />
-                    <span>Download Invoice</span>
-                  </button>
-                  <button
-                    onClick={() => labelUrl ? window.open(labelUrl, '_blank') : onDownloadLabel()}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary rounded-b-lg transition-colors"
-                  >
-                    <Download className="w-4 h-4 text-muted-foreground" />
-                    <span>Download Label</span>
-                  </button>
+                  {canOpenInvoice && (
+                    <button
+                      onClick={() => window.open(invoiceUrl, '_blank')}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-muted-foreground" />
+                      <span>Download Invoice</span>
+                    </button>
+                  )}
+                  {canOpenLabel && (
+                    <button
+                      onClick={() => window.open(labelUrl, '_blank')}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary rounded-b-lg transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-muted-foreground" />
+                      <span>Download Label</span>
+                    </button>
+                  )}
                 </div>
               </div>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -2220,6 +2215,12 @@ function OrderDetailView({
                 {order.payment_info?.razorpay_payment_id && (
                   <p><span className="text-muted-foreground">Razorpay Payment:</span> {order.payment_info.razorpay_payment_id}</p>
                 )}
+                {order.payment_info?.razorpay_signature && (
+                  <p><span className="text-muted-foreground">Razorpay Signature:</span> {order.payment_info.razorpay_signature}</p>
+                )}
+                {order.payment_info?.webhook_event && (
+                  <p><span className="text-muted-foreground">Webhook Event:</span> {order.payment_info.webhook_event}</p>
+                )}
               </div>
             </div>
             <div className="space-y-3">
@@ -2231,10 +2232,10 @@ function OrderDetailView({
                 <p><span className="text-muted-foreground">SR Order:</span> {order.shiprocket_order_id || '-'}</p>
                 <p><span className="text-muted-foreground">SR Shipment:</span> {order.shiprocket_shipment_id || '-'}</p>
                 <p><span className="text-muted-foreground">Shipment Status:</span> {order.shipment_status || '-'}</p>
-                {invoiceUrl && (
+                {canOpenInvoice && (
                   <p><a href={invoiceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">Open Shiprocket Invoice</a></p>
                 )}
-                {labelUrl && (
+                {canOpenLabel && (
                   <p><a href={labelUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">Open Shiprocket Label</a></p>
                 )}
               </div>
@@ -2371,6 +2372,47 @@ function OrderDetailView({
               onClick={() => approveShiprocketMutation.mutate()}
             >
               {approveShiprocketMutation.isPending ? 'Creating…' : 'Create Shipment'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showShiprocketUpdateModal} onOpenChange={setShowShiprocketUpdateModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Shiprocket Order</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-4">Update package details and pickup location.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium">Length (cm)</label>
+              <Input type="number" min={1} step={0.5} value={shiprocketForm.package_length} onChange={(e) => setShiprocketForm((f) => ({ ...f, package_length: Number(e.target.value) || 10 }))} className="mt-1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Width (cm)</label>
+              <Input type="number" min={1} step={0.5} value={shiprocketForm.package_width} onChange={(e) => setShiprocketForm((f) => ({ ...f, package_width: Number(e.target.value) || 10 }))} className="mt-1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Height (cm)</label>
+              <Input type="number" min={1} step={0.5} value={shiprocketForm.package_height} onChange={(e) => setShiprocketForm((f) => ({ ...f, package_height: Number(e.target.value) || 5 }))} className="mt-1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Weight (kg)</label>
+              <Input type="number" min={0.1} step={0.1} value={shiprocketForm.package_weight} onChange={(e) => setShiprocketForm((f) => ({ ...f, package_weight: Number(e.target.value) || 0.5 }))} className="mt-1" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Pickup location</label>
+            <Input value={shiprocketForm.pickup_location} onChange={(e) => setShiprocketForm((f) => ({ ...f, pickup_location: e.target.value }))} className="mt-1" />
+          </div>
+          <div className="flex gap-2 pt-4">
+            <Button variant="outline" onClick={() => setShowShiprocketUpdateModal(false)} className="flex-1">Cancel</Button>
+            <Button
+              className="flex-1"
+              disabled={updateShiprocketMutation.isPending}
+              onClick={() => updateShiprocketMutation.mutate(undefined, { onSuccess: () => setShowShiprocketUpdateModal(false) })}
+            >
+              {updateShiprocketMutation.isPending ? 'Updating…' : 'Update'}
             </Button>
           </div>
         </DialogContent>

@@ -49,6 +49,9 @@ def _shiprocket_payload_from_order(
             "sku": oi.product_sku,
             "units": oi.quantity,
             "selling_price": float(oi.unit_price),
+            "discount": float(oi.discount or 0),
+            "tax": "",
+            "hsn": (oi.extra_data or {}).get("hsn", ""),
         }
         for oi in order.items
     ]
@@ -752,7 +755,6 @@ async def process_shiprocket_shipment(
         awb_resp = None
         if body.courier_id:
             awb_resp = await assign_awb(
-                order_id=str(order.shiprocket_order_id or ""),
                 shipment_id=str(order.shiprocket_shipment_id),
                 courier_id=body.courier_id,
             )

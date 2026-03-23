@@ -149,7 +149,6 @@ async def create_order(order_payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def assign_awb(
-    order_id: str,
     shipment_id: str,
     courier_id: int,
 ) -> Dict[str, Any]:
@@ -158,7 +157,6 @@ async def assign_awb(
         "POST",
         "/courier/assign/awb",
         json={
-            "order_id": order_id,
             "shipment_id": shipment_id,
             "courier_id": courier_id,
         },
@@ -261,6 +259,9 @@ def build_order_payload(
                 "units": int(it.get("units", 1) or 1),
                 # Shiprocket adhoc endpoint expects selling_price
                 "selling_price": float(it.get("selling_price", it.get("price", 0)) or 0),
+                "discount": str(it.get("discount", "")),
+                "tax": str(it.get("tax", "")),
+                "hsn": it.get("hsn", ""),
             }
         )
 
