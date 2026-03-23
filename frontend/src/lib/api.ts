@@ -735,6 +735,32 @@ class ApiClient {
     return response.data;
   }
 
+  async refreshShiprocketDocs(orderId: number) {
+    const response = await this.client.post(`/orders/${orderId}/shiprocket/refresh-docs`);
+    return response.data;
+  }
+
+  async processShiprocketShipment(orderId: number, data?: { courier_id?: number }) {
+    const response = await this.client.post(`/orders/${orderId}/shiprocket/process-shipment`, data || {});
+    return response.data;
+  }
+
+  async cancelShiprocketOrder(orderId: number) {
+    const response = await this.client.post(`/orders/${orderId}/shiprocket/cancel`);
+    return response.data;
+  }
+
+  async updateShiprocketOrder(orderId: number, data: {
+    package_length?: number;
+    package_width?: number;
+    package_height?: number;
+    package_weight?: number;
+    pickup_location?: string;
+  }) {
+    const response = await this.client.put(`/orders/${orderId}/shiprocket/update`, data);
+    return response.data;
+  }
+
   async getOrderStats() {
     const response = await this.client.get('/orders/stats');
     return response.data;

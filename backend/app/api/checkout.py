@@ -229,6 +229,28 @@ async def create_checkout_order(
     if not cart.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
+    # Optional serviceability check with Shiprocket before creating order.
+    if settings.SHIPROCKET_EMAIL and settings.SHIPROCKET_PASSWORD:
+        try:
+            from app.services.shiprocket import check_serviceability
+            svc = await check_serviceability(
+                settings.SHIPROCKET_PICKUP_PINCODE,
+                body.address.pincode,
+                0.5,
+                0,
+            )
+            available = ((svc.get("data") or {}).get("available_courier_companies") or [])
+            if not available:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Delivery not serviceable for pincode {body.address.pincode}",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            # Non-blocking if Shiprocket serviceability API is temporarily unavailable.
+            pass
+
     # Build order from cart (price snapshot locked)
     order_number = _generate_order_number()
     subtotal = Decimal(0)

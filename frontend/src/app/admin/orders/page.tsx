@@ -2009,8 +2009,55 @@ function OrderDetailView({
     },
   });
   const shipping = order.shipping_info || {};
+  const shippingDetails = order.shipping_details || {};
   const items = order.items || [];
   const canApproveShiprocket = !order.shiprocket_order_id && order.payment_status === 'success';
+  const labelUrl = shippingDetails.shiprocket_label_url;
+  const invoiceUrl = shippingDetails.shiprocket_invoice_url;
+
+  const refreshShiprocketDocsMutation = useMutation({
+    mutationFn: () => api.refreshShiprocketDocs(order.id),
+    onSuccess: () => {
+      toast({ title: 'Shiprocket docs refreshed', variant: 'success' });
+      onShiprocketApproved?.();
+    },
+    onError: (err: any) => {
+      toast({ title: err.response?.data?.detail || 'Failed to refresh docs', variant: 'destructive' });
+    },
+  });
+
+  const processShipmentMutation = useMutation({
+    mutationFn: () => api.processShiprocketShipment(order.id),
+    onSuccess: () => {
+      toast({ title: 'Shipment processed (AWB/Pickup)', variant: 'success' });
+      onShiprocketApproved?.();
+    },
+    onError: (err: any) => {
+      toast({ title: err.response?.data?.detail || 'Failed to process shipment', variant: 'destructive' });
+    },
+  });
+
+  const cancelShiprocketMutation = useMutation({
+    mutationFn: () => api.cancelShiprocketOrder(order.id),
+    onSuccess: () => {
+      toast({ title: 'Shiprocket order cancelled', variant: 'success' });
+      onShiprocketApproved?.();
+    },
+    onError: (err: any) => {
+      toast({ title: err.response?.data?.detail || 'Failed to cancel Shiprocket order', variant: 'destructive' });
+    },
+  });
+
+  const updateShiprocketMutation = useMutation({
+    mutationFn: () => api.updateShiprocketOrder(order.id, shiprocketForm),
+    onSuccess: () => {
+      toast({ title: 'Shiprocket order updated', variant: 'success' });
+      onShiprocketApproved?.();
+    },
+    onError: (err: any) => {
+      toast({ title: err.response?.data?.detail || 'Failed to update Shiprocket order', variant: 'destructive' });
+    },
+  });
   
   return (
     <motion.div
@@ -2055,6 +2102,22 @@ function OrderDetailView({
                   Approve Shiprocket
                 </Button>
               )}
+              {!!order.shiprocket_order_id && (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => refreshShiprocketDocsMutation.mutate()}>
+                    Refresh Docs
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => processShipmentMutation.mutate()}>
+                    Create Shipment
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => updateShiprocketMutation.mutate()}>
+                    Update SR Order
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => cancelShiprocketMutation.mutate()}>
+                    Cancel SR Order
+                  </Button>
+                </>
+              )}
               {order.tracking_id && (
                 <span className="text-xs text-muted-foreground">Track: {order.tracking_id}</span>
               )}
@@ -2070,14 +2133,14 @@ function OrderDetailView({
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Print</span>
                   </div>
                   <button
-                    onClick={onPrintInvoice}
+                    onClick={() => invoiceUrl ? window.open(invoiceUrl, '_blank') : onPrintInvoice()}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
                   >
                     <Printer className="w-4 h-4 text-muted-foreground" />
                     <span>Print Invoice</span>
                   </button>
                   <button
-                    onClick={onPrintLabel}
+                    onClick={() => labelUrl ? window.open(labelUrl, '_blank') : onPrintLabel()}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
                   >
                     <Printer className="w-4 h-4 text-muted-foreground" />
@@ -2087,14 +2150,14 @@ function OrderDetailView({
                     <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Download</span>
                   </div>
                   <button
-                    onClick={onDownloadInvoice}
+                    onClick={() => invoiceUrl ? window.open(invoiceUrl, '_blank') : onDownloadInvoice()}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
                   >
                     <Download className="w-4 h-4 text-muted-foreground" />
                     <span>Download Invoice</span>
                   </button>
                   <button
-                    onClick={onDownloadLabel}
+                    onClick={() => labelUrl ? window.open(labelUrl, '_blank') : onDownloadLabel()}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary rounded-b-lg transition-colors"
                   >
                     <Download className="w-4 h-4 text-muted-foreground" />
@@ -2137,6 +2200,43 @@ function OrderDetailView({
                 {shipping.address_line2 && <p>{shipping.address_line2}</p>}
                 <p>{shipping.city}, {shipping.state} - {shipping.postal_code}</p>
                 {shipping.landmark && <p className="text-sm text-muted-foreground">Near: {shipping.landmark}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Payment + Shiprocket details */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <h4 className="font-semibold flex items-center gap-2">
+                <CreditCard className="w-4 h-4" />
+                Payment Details
+              </h4>
+              <div className="p-4 rounded-lg bg-secondary/50 space-y-1 text-sm">
+                <p><span className="text-muted-foreground">Method:</span> {order.payment_info?.method || '-'}</p>
+                <p><span className="text-muted-foreground">Status:</span> {order.payment_status || order.payment_info?.status || '-'}</p>
+                {order.payment_info?.razorpay_order_id && (
+                  <p><span className="text-muted-foreground">Razorpay Order:</span> {order.payment_info.razorpay_order_id}</p>
+                )}
+                {order.payment_info?.razorpay_payment_id && (
+                  <p><span className="text-muted-foreground">Razorpay Payment:</span> {order.payment_info.razorpay_payment_id}</p>
+                )}
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h4 className="font-semibold flex items-center gap-2">
+                <Truck className="w-4 h-4" />
+                Shiprocket Details
+              </h4>
+              <div className="p-4 rounded-lg bg-secondary/50 space-y-1 text-sm">
+                <p><span className="text-muted-foreground">SR Order:</span> {order.shiprocket_order_id || '-'}</p>
+                <p><span className="text-muted-foreground">SR Shipment:</span> {order.shiprocket_shipment_id || '-'}</p>
+                <p><span className="text-muted-foreground">Shipment Status:</span> {order.shipment_status || '-'}</p>
+                {invoiceUrl && (
+                  <p><a href={invoiceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">Open Shiprocket Invoice</a></p>
+                )}
+                {labelUrl && (
+                  <p><a href={labelUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">Open Shiprocket Label</a></p>
+                )}
               </div>
             </div>
           </div>

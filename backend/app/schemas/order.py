@@ -141,6 +141,8 @@ class OrderResponse(BaseModel):
     created_by_id: Optional[int] = None
     payment_status: Optional[str] = None
     shipment_status: Optional[str] = None
+    shiprocket_order_id: Optional[str] = None
+    shiprocket_shipment_id: Optional[str] = None
     tracking_id: Optional[str] = None
     items: List[OrderItemResponse] = []
     created_at: datetime
@@ -161,6 +163,8 @@ class OrderListResponse(BaseModel):
     shipping_info: Dict[str, Any]
     item_count: int = 0
     payment_status: Optional[str] = None
+    shiprocket_order_id: Optional[str] = None
+    shiprocket_shipment_id: Optional[str] = None
     tracking_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -177,6 +181,18 @@ class ApproveShiprocketRequest(BaseModel):
     package_weight: float = 0.5  # kg
     pickup_location: str = "Primary"
     courier_id: Optional[int] = None  # optional preference
+
+
+class ShiprocketProcessShipmentRequest(BaseModel):
+    courier_id: Optional[int] = None
+
+
+class ShiprocketUpdateOrderRequest(BaseModel):
+    package_length: float = 10.0
+    package_width: float = 10.0
+    package_height: float = 5.0
+    package_weight: float = 0.5
+    pickup_location: str = "Primary"
 
 
 # For scanning products into order

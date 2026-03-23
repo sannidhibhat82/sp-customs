@@ -21,6 +21,8 @@ from app.schemas.order import (
     OrderCreate, OrderUpdate, OrderResponse, OrderListResponse,
     OrderItemCreate, OrderItemResponse, OrderScanRequest, OrderScanResponse,
     ApproveShiprocketRequest,
+    ShiprocketProcessShipmentRequest,
+    ShiprocketUpdateOrderRequest,
     DirectOrderCreate, DirectOrderUpdate, DirectOrderResponse, DirectOrderListResponse,
     DirectOrderItemCreate, DirectOrderItemResponse
 )
@@ -29,6 +31,47 @@ from app.services.barcode_generator import BarcodeGenerator
 from app.config import settings
 
 router = APIRouter()
+
+
+def _shiprocket_payload_from_order(
+    order: Order,
+    addr: OrderAddress,
+    *,
+    package_length: float,
+    package_width: float,
+    package_height: float,
+    package_weight: float,
+    pickup_location: str,
+) -> dict:
+    order_items_sr = [
+        {
+            "name": oi.product_name,
+            "sku": oi.product_sku,
+            "units": oi.quantity,
+            "selling_price": float(oi.unit_price),
+        }
+        for oi in order.items
+    ]
+    from app.services.shiprocket import build_order_payload
+    return build_order_payload(
+        order_number=order.order_number,
+        customer_name=addr.name,
+        customer_phone=addr.phone,
+        customer_email=order.shipping_info.get("email", "") if isinstance(order.shipping_info, dict) else "",
+        address=addr.address,
+        city=addr.city,
+        state=addr.state,
+        pincode=addr.pincode,
+        country=addr.country,
+        order_items=order_items_sr,
+        total_amount=float(order.total),
+        payment_method="Prepaid",
+        weight=package_weight,
+        length=package_length,
+        width=package_width,
+        height=package_height,
+        pickup_location=pickup_location,
+    )
 
 
 def generate_order_number() -> str:
@@ -66,6 +109,8 @@ async def list_my_orders(
             shipping_info=order.shipping_info,
             item_count=len(order.items),
             payment_status=order.payment_status,
+            shiprocket_order_id=order.shiprocket_order_id,
+            shiprocket_shipment_id=order.shiprocket_shipment_id,
             tracking_id=order.tracking_id,
             created_at=order.created_at,
             updated_at=order.updated_at,
@@ -105,6 +150,8 @@ async def list_orders(
             shipping_info=order.shipping_info,
             item_count=len(order.items),
             payment_status=order.payment_status,
+            shiprocket_order_id=order.shiprocket_order_id,
+            shiprocket_shipment_id=order.shiprocket_shipment_id,
             tracking_id=order.tracking_id,
             created_at=order.created_at,
             updated_at=order.updated_at,
@@ -151,6 +198,8 @@ async def get_my_order(
         created_by_id=order.created_by_id,
         payment_status=order.payment_status,
         shipment_status=order.shipment_status,
+        shiprocket_order_id=order.shiprocket_order_id,
+        shiprocket_shipment_id=order.shiprocket_shipment_id,
         tracking_id=order.tracking_id,
         items=[OrderItemResponse.model_validate(item) for item in order.items],
         created_at=order.created_at,
@@ -589,6 +638,8 @@ async def get_order(
         created_by_id=order.created_by_id,
         payment_status=order.payment_status,
         shipment_status=order.shipment_status,
+        shiprocket_order_id=order.shiprocket_order_id,
+        shiprocket_shipment_id=order.shiprocket_shipment_id,
         tracking_id=order.tracking_id,
         items=[OrderItemResponse.model_validate(item) for item in order.items],
         created_at=order.created_at,
@@ -623,38 +674,18 @@ async def approve_order_shiprocket(
     try:
         from app.services.shiprocket import (
             create_order as sr_create_order,
-            build_order_payload,
             generate_label,
             generate_invoice,
         )
     except ImportError:
         raise HTTPException(status_code=503, detail="Shiprocket not configured")
-    order_items_sr = [
-        {
-            "name": oi.product_name,
-            "sku": oi.product_sku,
-            "units": oi.quantity,
-            "selling_price": float(oi.unit_price),
-        }
-        for oi in order.items
-    ]
-    payload = build_order_payload(
-        order_number=order.order_number,
-        customer_name=addr.name,
-        customer_phone=addr.phone,
-        customer_email=order.shipping_info.get("email", "") or "",
-        address=addr.address,
-        city=addr.city,
-        state=addr.state,
-        pincode=addr.pincode,
-        country=addr.country,
-        order_items=order_items_sr,
-        total_amount=float(order.total),
-        payment_method="Prepaid",
-        weight=body.package_weight,
-        length=body.package_length,
-        width=body.package_width,
-        height=body.package_height,
+    payload = _shiprocket_payload_from_order(
+        order,
+        addr,
+        package_length=body.package_length,
+        package_width=body.package_width,
+        package_height=body.package_height,
+        package_weight=body.package_weight,
         pickup_location=body.pickup_location,
     )
     try:
@@ -688,13 +719,158 @@ async def approve_order_shiprocket(
     order.status = status_list[1] if len(status_list) > 1 else "Processing"
     try:
         if order.shiprocket_shipment_id:
-            await generate_label(order.shiprocket_shipment_id)
-            await generate_invoice(order.shiprocket_shipment_id)
+            label_resp = await generate_label(order.shiprocket_shipment_id)
+            invoice_resp = await generate_invoice(order.shiprocket_shipment_id)
+            sd = order.shipping_details or {}
+            sd["shiprocket_label_url"] = label_resp.get("label_url")
+            sd["shiprocket_invoice_url"] = invoice_resp.get("invoice_url")
+            order.shipping_details = sd
     except Exception:
         pass
     await db.commit()
     await db.refresh(order)
     return {"success": True, "order_id": order.id, "shiprocket_order_id": order.shiprocket_order_id, "tracking_id": order.tracking_id}
+
+
+@router.post("/{order_id}/shiprocket/process-shipment")
+async def process_shiprocket_shipment(
+    order_id: int,
+    body: ShiprocketProcessShipmentRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Assign AWB and generate pickup for an already-created Shiprocket shipment."""
+    result = await db.execute(select(Order).where(Order.id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if not order.shiprocket_shipment_id:
+        raise HTTPException(status_code=400, detail="Shiprocket shipment is not created yet")
+
+    try:
+        from app.services.shiprocket import assign_awb, create_pickup
+        awb_resp = None
+        if body.courier_id:
+            awb_resp = await assign_awb(
+                order_id=str(order.shiprocket_order_id or ""),
+                shipment_id=str(order.shiprocket_shipment_id),
+                courier_id=body.courier_id,
+            )
+            awb_data = (((awb_resp or {}).get("response") or {}).get("data") or {})
+            if awb_data.get("awb_code") and not order.tracking_id:
+                order.tracking_id = str(awb_data.get("awb_code"))
+        pickup_resp = await create_pickup(str(order.shiprocket_shipment_id))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Shiprocket shipment processing failed: {e}")
+
+    sd = order.shipping_details or {}
+    sd["shiprocket_awb_response"] = awb_resp
+    sd["shiprocket_pickup_response"] = pickup_resp
+    order.shipping_details = sd
+    await db.commit()
+    await db.refresh(order)
+    return {"success": True, "order_id": order.id, "tracking_id": order.tracking_id}
+
+
+@router.post("/{order_id}/shiprocket/refresh-docs")
+async def refresh_shiprocket_docs(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """Regenerate/download Shiprocket invoice and label URLs and store on order."""
+    result = await db.execute(select(Order).where(Order.id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if not order.shiprocket_shipment_id:
+        raise HTTPException(status_code=400, detail="Shiprocket shipment is not created yet")
+    try:
+        from app.services.shiprocket import generate_label, generate_invoice
+        label_resp = await generate_label(str(order.shiprocket_shipment_id))
+        invoice_resp = await generate_invoice(str(order.shiprocket_shipment_id))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Shiprocket docs generation failed: {e}")
+    sd = order.shipping_details or {}
+    if label_resp.get("label_url"):
+        sd["shiprocket_label_url"] = label_resp.get("label_url")
+    if invoice_resp.get("invoice_url"):
+        sd["shiprocket_invoice_url"] = invoice_resp.get("invoice_url")
+    sd["shiprocket_label_response"] = label_resp
+    sd["shiprocket_invoice_response"] = invoice_resp
+    order.shipping_details = sd
+    await db.commit()
+    await db.refresh(order)
+    return {
+        "success": True,
+        "label_url": (order.shipping_details or {}).get("shiprocket_label_url"),
+        "invoice_url": (order.shipping_details or {}).get("shiprocket_invoice_url"),
+    }
+
+
+@router.post("/{order_id}/shiprocket/cancel")
+async def cancel_shiprocket_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    result = await db.execute(select(Order).where(Order.id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if not order.shiprocket_order_id:
+        raise HTTPException(status_code=400, detail="Shiprocket order is not created yet")
+    try:
+        from app.services.shiprocket import cancel_order as sr_cancel_order
+        cancel_resp = await sr_cancel_order(str(order.shiprocket_order_id))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Shiprocket cancel failed: {e}")
+    order.shipment_status = "cancelled"
+    sd = order.shipping_details or {}
+    sd["shiprocket_cancel_response"] = cancel_resp
+    order.shipping_details = sd
+    await db.commit()
+    return {"success": True, "order_id": order.id}
+
+
+@router.put("/{order_id}/shiprocket/update")
+async def update_shiprocket_order(
+    order_id: int,
+    body: ShiprocketUpdateOrderRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    result = await db.execute(
+        select(Order).options(selectinload(Order.items)).where(Order.id == order_id)
+    )
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if not order.shiprocket_order_id:
+        raise HTTPException(status_code=400, detail="Shiprocket order is not created yet")
+    addr_result = await db.execute(select(OrderAddress).where(OrderAddress.order_id == order.id))
+    addr = addr_result.scalar_one_or_none()
+    if not addr:
+        raise HTTPException(status_code=400, detail="Order has no shipping address")
+    payload = _shiprocket_payload_from_order(
+        order,
+        addr,
+        package_length=body.package_length,
+        package_width=body.package_width,
+        package_height=body.package_height,
+        package_weight=body.package_weight,
+        pickup_location=body.pickup_location,
+    )
+    try:
+        from app.services.shiprocket import update_order_adhoc
+        update_resp = await update_order_adhoc(payload)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Shiprocket update failed: {e}")
+    sd = order.shipping_details or {}
+    sd["shiprocket_update_response"] = update_resp
+    order.shipping_details = sd
+    await db.commit()
+    return {"success": True, "order_id": order.id}
 
 
 @router.post("", response_model=OrderResponse)

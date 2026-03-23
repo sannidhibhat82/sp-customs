@@ -165,6 +165,15 @@ async def assign_awb(
     )
 
 
+async def create_pickup(shipment_id: str) -> Dict[str, Any]:
+    """Create pickup for shipment. POST /courier/generate/pickup"""
+    return await _request(
+        "POST",
+        "/courier/generate/pickup",
+        json={"shipment_id": [shipment_id]},
+    )
+
+
 # ---------- Labels & invoices ----------
 
 
@@ -212,6 +221,11 @@ async def get_tracking_by_awb(awb: str) -> Dict[str, Any]:
 async def cancel_order(order_id: str) -> Dict[str, Any]:
     """Cancel order. POST /orders/cancel"""
     return await _request("POST", "/orders/cancel", json={"ids": [order_id]})
+
+
+async def update_order_adhoc(order_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Update adhoc order. POST /orders/update/adhoc"""
+    return await _request("POST", "/orders/update/adhoc", json=order_payload)
 
 
 def build_order_payload(
