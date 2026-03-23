@@ -39,6 +39,9 @@ import {
   Filter,
   MoreVertical,
   Download,
+  RefreshCw,
+  Edit2,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,15 +80,19 @@ const DEFAULT_ORDER_STATUSES = [
 // Order status colors (dark theme compatible)
 const STATUS_COLORS: Record<string, string> = {
   'Pending Approval': 'bg-amber-500/20 text-amber-500 border-amber-500/30',
+  Processing: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
+  Packed: 'bg-purple-500/20 text-purple-500 border-purple-500/30',
+  Shipped: 'bg-indigo-500/20 text-indigo-500 border-indigo-500/30',
+  'Out for Delivery': 'bg-sky-500/20 text-sky-500 border-sky-500/30',
+  Delivered: 'bg-green-500/20 text-green-500 border-green-500/30',
+  Cancelled: 'bg-red-500/20 text-red-500 border-red-500/30',
   pending: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30',
   processing: 'bg-blue-500/20 text-blue-500 border-blue-500/30',
   packed: 'bg-purple-500/20 text-purple-500 border-purple-500/30',
   shipped: 'bg-indigo-500/20 text-indigo-500 border-indigo-500/30',
-  'Out for Delivery': 'bg-sky-500/20 text-sky-500 border-sky-500/30',
+  'out for delivery': 'bg-sky-500/20 text-sky-500 border-sky-500/30',
   delivered: 'bg-green-500/20 text-green-500 border-green-500/30',
-  Delivered: 'bg-green-500/20 text-green-500 border-green-500/30',
   cancelled: 'bg-red-500/20 text-red-500 border-red-500/30',
-  Cancelled: 'bg-red-500/20 text-red-500 border-red-500/30',
 };
 
 // Format currency
@@ -2028,7 +2035,7 @@ function OrderDetailView({
   });
 
   const processShipmentMutation = useMutation({
-    mutationFn: () => api.processShiprocketShipment(order.id),
+    mutationFn: (payload?: { courier_id?: number }) => api.processShiprocketShipment(order.id, payload),
     onSuccess: () => {
       toast({ title: 'Shipment processed (AWB/Pickup)', variant: 'success' });
       onShiprocketApproved?.();
@@ -2093,51 +2100,70 @@ function OrderDetailView({
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
-              {canApproveShiprocket && (
-                <Button
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700"
-                  onClick={() => setShowShiprocketModal(true)}
-                >
-                  <Truck className="w-4 h-4 mr-1" />
-                  Approve Shiprocket
-                </Button>
-              )}
-              {!!order.shiprocket_order_id && (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => refreshShiprocketDocsMutation.mutate()}>
-                    Sync Docs
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => processShipmentMutation.mutate()}
-                  >
-                    Create Shipment
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setShowShiprocketUpdateModal(true)}>
-                    Update SR Order
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={() => cancelShiprocketMutation.mutate()}>
-                    Cancel SR Order
-                  </Button>
-                </>
-              )}
               {order.tracking_id && (
                 <span className="text-xs text-muted-foreground">Track: {order.tracking_id}</span>
               )}
-              {/* Actions Dropdown */}
-              {(canOpenInvoice || canOpenLabel) && (
+              {/* Shiprocket Actions */}
+              {(canApproveShiprocket || !!order.shiprocket_order_id || canOpenInvoice || canOpenLabel) && (
               <div className="relative group">
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" size="icon" className="h-9 w-9">
                   <MoreVertical className="w-4 h-4" />
-                  Shiprocket Docs
-                  <ChevronDown className="w-3 h-3" />
                 </Button>
-                <div className="absolute right-0 mt-1 w-56 bg-card border border-border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <div className="px-3 py-2 border-t border-b border-border bg-secondary/50">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Download</span>
-                  </div>
+                <div className="absolute right-0 mt-1 w-60 bg-card border border-border rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden">
+                  {canApproveShiprocket && (
+                    <button
+                      onClick={() => setShowShiprocketModal(true)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
+                    >
+                      <Truck className="w-4 h-4 text-muted-foreground" />
+                      <span>Approve Shiprocket</span>
+                    </button>
+                  )}
+                  {!!order.shiprocket_order_id && (
+                    <>
+                      <button
+                        onClick={() => refreshShiprocketDocsMutation.mutate()}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
+                      >
+                        <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                        <span>Sync Docs</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const raw = window.prompt('Courier ID (optional if AWB is already assigned):', '');
+                          const courierId = raw && raw.trim() ? Number(raw.trim()) : undefined;
+                          if (raw && raw.trim() && Number.isNaN(courierId)) {
+                            toast({ title: 'Invalid courier ID', variant: 'destructive' });
+                            return;
+                          }
+                          processShipmentMutation.mutate(courierId ? { courier_id: courierId } : undefined);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
+                      >
+                        <Package className="w-4 h-4 text-muted-foreground" />
+                        <span>Create Shipment</span>
+                      </button>
+                      <button
+                        onClick={() => setShowShiprocketUpdateModal(true)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
+                      >
+                        <Edit2 className="w-4 h-4 text-muted-foreground" />
+                        <span>Update SR Order</span>
+                      </button>
+                      <button
+                        onClick={() => cancelShiprocketMutation.mutate()}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>Cancel SR Order</span>
+                      </button>
+                    </>
+                  )}
+                  {(canOpenInvoice || canOpenLabel) && (
+                    <div className="px-3 py-2 border-t border-b border-border bg-secondary/50">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Shiprocket Docs</span>
+                    </div>
+                  )}
                   {canOpenInvoice && (
                     <button
                       onClick={() => window.open(invoiceUrl, '_blank')}
@@ -2150,14 +2176,17 @@ function OrderDetailView({
                   {canOpenLabel && (
                     <button
                       onClick={() => window.open(labelUrl, '_blank')}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary rounded-b-lg transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
                     >
                       <Download className="w-4 h-4 text-muted-foreground" />
                       <span>Download Label</span>
                     </button>
                   )}
+                  {!canApproveShiprocket && !order.shiprocket_order_id && !canOpenInvoice && !canOpenLabel && (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">No Shiprocket actions available</div>
+                  )}
+                  </div>
                 </div>
-              </div>
               )}
             </div>
           </div>

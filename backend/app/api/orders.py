@@ -43,13 +43,17 @@ def _shiprocket_payload_from_order(
     package_weight: float,
     pickup_location: str,
 ) -> dict:
+    order_discount_total = float(order.discount_amount or 0)
+    item_count = len(order.items) if order.items else 0
+    discount_per_item = (order_discount_total / item_count) if item_count else 0
     order_items_sr = [
         {
             "name": oi.product_name,
             "sku": oi.product_sku,
             "units": oi.quantity,
             "selling_price": float(oi.unit_price),
-            "discount": float(oi.discount or 0),
+            # If line-item discount is missing, spread order-level discount for better Shiprocket display.
+            "discount": float(oi.discount or discount_per_item),
             "tax": "",
             "hsn": (oi.extra_data or {}).get("hsn", ""),
         }
@@ -67,7 +71,10 @@ def _shiprocket_payload_from_order(
         pincode=addr.pincode,
         country=addr.country,
         order_items=order_items_sr,
-        total_amount=float(order.total),
+        sub_total=float(order.subtotal),
+        total_discount=order_discount_total,
+        shipping_charges=float(order.shipping_cost or 0),
+        transaction_charges=float(order.tax_amount or 0),
         payment_method="Prepaid",
         weight=package_weight,
         length=package_length,
@@ -772,7 +779,14 @@ async def process_shiprocket_shipment(
             awb_data = (((awb_resp or {}).get("response") or {}).get("data") or {})
             if awb_data.get("awb_code") and not order.tracking_id:
                 order.tracking_id = str(awb_data.get("awb_code"))
+        elif not order.tracking_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Courier ID required to assign AWB before pickup. Please provide courier_id.",
+            )
         pickup_resp = await create_pickup(str(order.shiprocket_shipment_id))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Shiprocket shipment processing failed: {e}")
 
