@@ -47,8 +47,6 @@ async def razorpay_payment_webhook(
         payload = json.loads(body.decode("utf-8")) if body else {}
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    print(payload)
-    print(x_razorpay_signature)
     event = (payload.get("event") or "").strip()
     entity: dict[str, Any] = ((payload.get("payload") or {}).get("payment") or {}).get("entity") or {}
     if not entity:
@@ -58,12 +56,22 @@ async def razorpay_payment_webhook(
     if event not in ("payment.captured", "order.paid"):
         return {"received": True, "ignored": True, "event": event}
 
-    # We persist razorpay_order_id in order.payment_info during order creation.
-    razorpay_order_id = str(entity.get("order_id") or entity.get("id") or "")
+    payment_entity: dict[str, Any] = ((payload.get("payload") or {}).get("payment") or {}).get("entity") or {}
+    order_entity: dict[str, Any] = ((payload.get("payload") or {}).get("order") or {}).get("entity") or {}
+    notes = (
+        (payment_entity.get("notes") if isinstance(payment_entity.get("notes"), dict) else None)
+        or (order_entity.get("notes") if isinstance(order_entity.get("notes"), dict) else None)
+        or {}
+    )
+
+    # Prefer payment.order_id; fallback to order.id for order.paid payloads.
+    razorpay_order_id = str(payment_entity.get("order_id") or order_entity.get("id") or entity.get("order_id") or "")
     razorpay_payment_id = str(entity.get("id") or "")
     if not razorpay_order_id:
         return {"received": True, "ignored": True, "reason": "missing_order_id"}
 
+    order = None
+    # 1) Primary lookup by stored Razorpay order id
     try:
         result = await db.execute(
             select(Order)
@@ -73,8 +81,39 @@ async def razorpay_payment_webhook(
         order = result.scalar_one_or_none()
     except Exception:
         order = None
+
+    # 2) Fallback lookup by order uuid passed in notes
+    if not order and notes.get("order_uuid"):
+        result = await db.execute(
+            select(Order)
+            .options(selectinload(Order.items))
+            .where(Order.uuid == str(notes.get("order_uuid")))
+        )
+        order = result.scalar_one_or_none()
+
+    # 3) Fallback lookup by order number/receipt
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        order_number = (
+            str(notes.get("order_number") or "")
+            or str(order_entity.get("receipt") or "")
+        )
+        if order_number:
+            result = await db.execute(
+                select(Order)
+                .options(selectinload(Order.items))
+                .where(Order.order_number == order_number)
+            )
+            order = result.scalar_one_or_none()
+
+    if not order:
+        logger.warning(
+            "Razorpay webhook order not found event=%s razorpay_order_id=%s notes=%s",
+            event,
+            razorpay_order_id,
+            notes,
+        )
+        # Return 200 to avoid endless retries when order is missing/mismatched.
+        return {"received": True, "ignored": True, "reason": "order_not_found"}
 
     if order.payment_status == "success":
         return {"received": True, "success": True, "already": True}
