@@ -54,6 +54,7 @@ async def razorpay_payment_webhook(
 
     # Ignore unrelated events, but acknowledge receipt.
     if event not in ("payment.captured", "order.paid"):
+        logger.info("Razorpay webhook ignored event=%s", event)
         return {"received": True, "ignored": True, "event": event}
 
     payment_entity: dict[str, Any] = ((payload.get("payload") or {}).get("payment") or {}).get("entity") or {}
@@ -68,6 +69,7 @@ async def razorpay_payment_webhook(
     razorpay_order_id = str(payment_entity.get("order_id") or order_entity.get("id") or entity.get("order_id") or "")
     razorpay_payment_id = str(entity.get("id") or "")
     if not razorpay_order_id:
+        logger.warning("Razorpay webhook ignored reason=missing_order_id event=%s", event)
         return {"received": True, "ignored": True, "reason": "missing_order_id"}
 
     order = None
@@ -115,7 +117,21 @@ async def razorpay_payment_webhook(
         # Return 200 to avoid endless retries when order is missing/mismatched.
         return {"received": True, "ignored": True, "reason": "order_not_found"}
 
+    logger.info(
+        "Razorpay webhook matched event=%s order_id=%s order_number=%s razorpay_order_id=%s",
+        event,
+        order.id,
+        order.order_number,
+        razorpay_order_id,
+    )
+
     if order.payment_status == "success":
+        logger.info(
+            "Razorpay webhook already_processed event=%s order_id=%s order_number=%s",
+            event,
+            order.id,
+            order.order_number,
+        )
         return {"received": True, "success": True, "already": True}
 
     await _process_payment_success(order, db)
@@ -132,6 +148,13 @@ async def razorpay_payment_webhook(
     order.payment_info = payment_info
     await db.flush()
     await db.refresh(order)
+    logger.info(
+        "Razorpay webhook processed event=%s order_id=%s order_number=%s payment_id=%s",
+        event,
+        order.id,
+        order.order_number,
+        razorpay_payment_id or payment_info.get("razorpay_payment_id"),
+    )
     return {"received": True, "success": True, "event": event, "order_id": order.id, "order_number": order.order_number}
 
 
