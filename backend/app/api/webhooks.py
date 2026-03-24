@@ -3,6 +3,7 @@ import hmac
 import hashlib
 import json
 from typing import Any
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -176,6 +177,7 @@ async def razorpay_payment_webhook(
 async def shiprocket_shipping_status_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
+    x_api_key: str | None = Header(None, alias="x-api-key"),
 ):
     """
     Shiprocket Shipping (fulfillment) webhook.
@@ -187,6 +189,11 @@ async def shiprocket_shipping_status_webhook(
     - Order.shipping_details payload snapshot (non-sensitive)
     - Order.status (best-effort mapping to ORDER_STATUS_LIST)
     """
+    # Optional token validation from Shiprocket dashboard webhook settings.
+    expected_token = (settings.SHIPROCKET_SHIPPING_WEBHOOK_TOKEN or "").strip()
+    if expected_token and (x_api_key or "").strip() != expected_token:
+        raise HTTPException(status_code=401, detail="Invalid webhook token")
+
     import json
 
     body = await request.body()
@@ -230,20 +237,36 @@ async def shiprocket_shipping_status_webhook(
             awb,
             list(data.keys()),
         )
-        raise HTTPException(status_code=404, detail="Order not found")
+        # Acknowledge to avoid retries for unmatched payloads.
+        return {"received": True, "ignored": True, "reason": "order_not_found"}
 
     # Update tracking if present
     if awb and not order.tracking_id:
         order.tracking_id = str(awb)
 
     # Store shipping webhook snapshot (safe subset)
+    scans = data.get("scans")
+    timeline: list[dict[str, Any]] = []
+    if isinstance(scans, list):
+        for s in scans:
+            if not isinstance(s, dict):
+                continue
+            timeline.append(
+                {
+                    "date": s.get("date"),
+                    "activity": s.get("activity"),
+                    "location": s.get("location"),
+                }
+            )
+
     sd = order.shipping_details or {}
     sd["shiprocket_webhook"] = {
-        "received_at": None,
+        "received_at": datetime.utcnow().isoformat(),
         "order_id": str(sr_order_id) if sr_order_id else None,
         "shipment_id": str(shipment_id) if shipment_id else None,
         "awb": str(awb) if awb else None,
         "status": status_norm or None,
+        "scans": timeline,
         "payload": data,
     }
     order.shipping_details = sd

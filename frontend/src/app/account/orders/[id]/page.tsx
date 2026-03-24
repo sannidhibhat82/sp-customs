@@ -58,7 +58,13 @@ export default function AccountOrderDetailPage() {
   }
 
   const shipping = order.shipping_info || {};
+  const shippingDetails = order.shipping_details || {};
   const items = order.items || [];
+  const scanTimeline = (
+    shippingDetails.shiprocket_webhook?.scans ||
+    shippingDetails.shiprocket_pickup_response?.response?.shipment_track_activities ||
+    []
+  ) as Array<{ date?: string; activity?: string; location?: string }>;
 
   return (
     <div className="min-h-screen bg-background">
@@ -156,6 +162,28 @@ export default function AccountOrderDetailPage() {
               <p className="text-lg font-bold">Total {formatCurrency(Number(order.total))}</p>
             </div>
           </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-6 mt-6">
+          <h2 className="font-semibold flex items-center gap-2 mb-4">
+            <Truck className="w-4 h-4" />
+            Shipment Activity
+          </h2>
+          {!scanTimeline.length ? (
+            <p className="text-sm text-muted-foreground">No shipment activity yet. Updates appear here automatically.</p>
+          ) : (
+            <ol className="space-y-3">
+              {scanTimeline.map((scan, idx) => (
+                <li key={`${scan.date || 'd'}-${idx}`} className="relative pl-5">
+                  <span className="absolute left-0 top-2 h-2 w-2 rounded-full bg-primary/70" />
+                  <p className="text-sm font-medium">{scan.activity || 'Status update'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {[scan.date, scan.location].filter(Boolean).join(' • ') || '—'}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
 
         <div className="mt-6">

@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     SHIPROCKET_PASSWORD: Optional[str] = None
     SHIPROCKET_TOKEN_CACHE_TTL_SECONDS: int = 86400  # 24h; token valid 10 days
     SHIPROCKET_PICKUP_PINCODE: str = "110001"
+    # Shipping webhook token from Shiprocket dashboard; sent as x-api-key header.
+    SHIPROCKET_SHIPPING_WEBHOOK_TOKEN: Optional[str] = None
     
     # Shiprocket SR Checkout (payment gateway) - ref: https://docs.google.com/document/d/1uEcKW0uPAldhKiFCqJbAQnAmBTP6Azvlt_Rcxu5BW_0
     SHIPROCKET_CHECKOUT_ENABLED: bool = False

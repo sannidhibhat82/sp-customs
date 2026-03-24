@@ -70,9 +70,6 @@ export default function AccountOrdersPage() {
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
                       {order.status}
                     </span>
-                    {order.tracking_id && (
-                      <span className="text-xs text-muted-foreground">Track: {order.tracking_id}</span>
-                    )}
                   </div>
                   <div className="text-sm text-muted-foreground w-full sm:w-auto">
                     {new Date(order.created_at).toLocaleDateString('en-IN')}
