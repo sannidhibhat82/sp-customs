@@ -823,6 +823,7 @@ async def process_shiprocket_shipment(
             check_serviceability,
             get_pickup_locations,
             pick_best_courier_id,
+            parse_awb_assign_response,
         )
         awb_resp = None
         if body.courier_id:
@@ -830,9 +831,6 @@ async def process_shiprocket_shipment(
                 shipment_id=str(order.shiprocket_shipment_id),
                 courier_id=body.courier_id,
             )
-            awb_data = (((awb_resp or {}).get("response") or {}).get("data") or {})
-            if awb_data.get("awb_code") and not order.tracking_id:
-                order.tracking_id = str(awb_data.get("awb_code"))
         elif not order.tracking_id:
             # Auto-resolve courier_id via serviceability when user doesn't provide one.
             addr_result = await db.execute(select(OrderAddress).where(OrderAddress.order_id == order.id))
@@ -880,9 +878,14 @@ async def process_shiprocket_shipment(
                 shipment_id=str(order.shiprocket_shipment_id),
                 courier_id=auto_courier_id,
             )
-            awb_data = (((awb_resp or {}).get("response") or {}).get("data") or {})
-            if awb_data.get("awb_code") and not order.tracking_id:
-                order.tracking_id = str(awb_data.get("awb_code"))
+
+        if awb_resp is not None:
+            ok_awb, awb_code, awb_err = parse_awb_assign_response(awb_resp)
+            if not ok_awb:
+                raise HTTPException(status_code=400, detail=f"Shiprocket AWB: {awb_err}")
+            if awb_code and not order.tracking_id:
+                order.tracking_id = str(awb_code)
+
         pickup_resp = await create_pickup(str(order.shiprocket_shipment_id))
     except HTTPException:
         raise

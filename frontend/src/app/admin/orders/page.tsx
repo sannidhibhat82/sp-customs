@@ -2366,12 +2366,8 @@ function OrderDetailView({
                 {order.payment_info?.razorpay_payment_id && (
                   <p><span className="text-muted-foreground">Razorpay Payment:</span> {order.payment_info.razorpay_payment_id}</p>
                 )}
-                {order.payment_info?.razorpay_signature && (
-                  <p><span className="text-muted-foreground">Razorpay Signature:</span> {order.payment_info.razorpay_signature}</p>
-                )}
-                {order.payment_info?.webhook_event && (
-                  <p><span className="text-muted-foreground">Webhook Event:</span> {order.payment_info.webhook_event}</p>
-                )}
+                <p><span className="text-muted-foreground">Razorpay Signature:</span> {order.payment_info?.razorpay_signature || '-'}</p>
+                <p><span className="text-muted-foreground">Webhook Event:</span> {order.payment_info?.webhook_event || '-'}</p>
                 {!order.payment_info?.razorpay_order_id && !order.payment_info?.razorpay_payment_id && (
                   <p className="text-xs text-muted-foreground">Razorpay IDs not found on this order record.</p>
                 )}

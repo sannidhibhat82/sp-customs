@@ -213,6 +213,27 @@ async def assign_awb(
     )
 
 
+def parse_awb_assign_response(resp: Optional[Dict[str, Any]]) -> tuple[bool, Optional[str], Optional[str]]:
+    """
+    Shiprocket often returns HTTP 200 with awb_assign_status=0 when AWB is not assigned
+    (e.g. insufficient wallet balance). Returns (success, awb_code, user_visible_error).
+    """
+    if not isinstance(resp, dict):
+        return False, None, "Invalid response from Shiprocket"
+    data = ((resp.get("response") or {}).get("data") or {})
+    awb = data.get("awb_code")
+    if awb:
+        return True, str(awb), None
+    err = (
+        str(data.get("awb_assign_error") or "").strip()
+        or str(resp.get("message") or "").strip()
+        or str(data.get("error") or "").strip()
+    )
+    if not err:
+        err = "AWB was not assigned. Check Shiprocket wallet balance and courier settings."
+    return False, None, err
+
+
 async def create_pickup(shipment_id: str) -> Dict[str, Any]:
     """Create pickup for shipment. POST /courier/generate/pickup"""
     return await _request(
