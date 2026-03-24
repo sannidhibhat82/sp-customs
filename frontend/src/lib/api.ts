@@ -723,6 +723,20 @@ class ApiClient {
     return response.data;
   }
 
+  async getShiprocketPickupLocations() {
+    const response = await this.client.get<{
+      locations: Array<{
+        pickup_location: string;
+        pin_code?: string | null;
+        city?: string | null;
+        state?: string | null;
+        address?: string | null;
+        is_primary?: boolean;
+      }>;
+    }>('/orders/shiprocket/pickup-locations');
+    return response.data;
+  }
+
   async approveOrderShiprocket(orderId: number, data: {
     package_length?: number;
     package_width?: number;

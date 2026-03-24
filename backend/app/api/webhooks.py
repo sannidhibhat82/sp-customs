@@ -127,6 +127,19 @@ async def razorpay_payment_webhook(
     )
 
     if order.payment_status == "success":
+        # Idempotent webhook: enrich payment_info even when already paid.
+        existing = dict(order.payment_info or {})
+        existing.update(
+            {
+                "gateway": "razorpay",
+                "status": "paid",
+                "razorpay_order_id": razorpay_order_id or existing.get("razorpay_order_id"),
+                "razorpay_payment_id": razorpay_payment_id or existing.get("razorpay_payment_id"),
+                "webhook_event": event,
+            }
+        )
+        order.payment_info = existing
+        await db.flush()
         logger.info(
             "Razorpay webhook already_processed event=%s order_id=%s order_number=%s",
             event,
@@ -136,7 +149,7 @@ async def razorpay_payment_webhook(
         return {"received": True, "success": True, "already": True}
 
     await _process_payment_success(order, db)
-    payment_info = order.payment_info or {}
+    payment_info = dict(order.payment_info or {})
     payment_info.update(
         {
             "gateway": "razorpay",

@@ -23,6 +23,8 @@ from app.schemas.order import (
     ApproveShiprocketRequest,
     ShiprocketProcessShipmentRequest,
     ShiprocketUpdateOrderRequest,
+    ShiprocketPickupLocationItem,
+    ShiprocketPickupLocationsResponse,
     DirectOrderCreate, DirectOrderUpdate, DirectOrderResponse, DirectOrderListResponse,
     DirectOrderItemCreate, DirectOrderItemResponse
 )
@@ -580,6 +582,45 @@ async def update_direct_order_status(
 
 # ============ Regular Orders ============
 
+@router.get("/shiprocket/pickup-locations", response_model=ShiprocketPickupLocationsResponse)
+async def list_shiprocket_pickup_locations(
+    current_user: User = Depends(get_admin_user),
+):
+    """
+    List Shiprocket pickup location names (and pin codes) for admin UI.
+    GET https://apiv2.shiprocket.in/v1/external/settings/company/pickup
+    """
+    try:
+        from app.services.shiprocket import get_pickup_locations
+        resp = await get_pickup_locations()
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Shiprocket pickup list failed: {e}")
+
+    data = (resp or {}).get("data") or {}
+    raw = data.get("shipping_address") or []
+    locations: list[ShiprocketPickupLocationItem] = []
+    for p in raw:
+        if not isinstance(p, dict):
+            continue
+        name = p.get("pickup_location") or p.get("name")
+        if not name:
+            continue
+        pin = p.get("pin_code")
+        locations.append(
+            ShiprocketPickupLocationItem(
+                pickup_location=str(name).strip(),
+                pin_code=str(pin).strip() if pin is not None else None,
+                city=p.get("city"),
+                state=p.get("state"),
+                address=p.get("address"),
+                is_primary=bool(p.get("is_primary_location")),
+            )
+        )
+    return ShiprocketPickupLocationsResponse(locations=locations)
+
+
 @router.get("/by-uuid/{order_uuid}")
 async def get_order_by_uuid_public(
     order_uuid: str,
@@ -735,6 +776,13 @@ async def approve_order_shiprocket(
         order.tracking_id = str(awb_or_tracking)
     status_list = [s.strip() for s in (getattr(settings, "ORDER_STATUS_LIST", "") or "Processing").split(",") if s.strip()]
     order.status = status_list[1] if len(status_list) > 1 else "Processing"
+    sd = dict(order.shipping_details or {})
+    sd["pickup_location"] = body.pickup_location
+    sd["package_length"] = body.package_length
+    sd["package_width"] = body.package_width
+    sd["package_height"] = body.package_height
+    sd["package_weight"] = body.package_weight
+    order.shipping_details = sd
     try:
         if order.shiprocket_shipment_id:
             label_resp = await generate_label(order.shiprocket_shipment_id)
@@ -742,7 +790,7 @@ async def approve_order_shiprocket(
                 invoice_resp = await generate_invoice(order.shiprocket_order_id)
             else:
                 invoice_resp = {}
-            sd = order.shipping_details or {}
+            sd = dict(order.shipping_details or {})
             sd["shiprocket_label_url"] = label_resp.get("label_url")
             sd["shiprocket_invoice_url"] = invoice_resp.get("invoice_url")
             order.shipping_details = sd
@@ -769,7 +817,13 @@ async def process_shiprocket_shipment(
         raise HTTPException(status_code=400, detail="Shiprocket shipment_id missing. Please update/refresh Shiprocket order first.")
 
     try:
-        from app.services.shiprocket import assign_awb, create_pickup
+        from app.services.shiprocket import (
+            assign_awb,
+            create_pickup,
+            check_serviceability,
+            get_pickup_locations,
+            pick_best_courier_id,
+        )
         awb_resp = None
         if body.courier_id:
             awb_resp = await assign_awb(
@@ -780,10 +834,55 @@ async def process_shiprocket_shipment(
             if awb_data.get("awb_code") and not order.tracking_id:
                 order.tracking_id = str(awb_data.get("awb_code"))
         elif not order.tracking_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Courier ID required to assign AWB before pickup. Please provide courier_id.",
+            # Auto-resolve courier_id via serviceability when user doesn't provide one.
+            addr_result = await db.execute(select(OrderAddress).where(OrderAddress.order_id == order.id))
+            addr = addr_result.scalar_one_or_none()
+            if not addr:
+                raise HTTPException(status_code=400, detail="Order has no shipping address for courier selection")
+
+            pickup_postcode = None
+            try:
+                pickup_resp = await get_pickup_locations()
+                locations = ((pickup_resp or {}).get("data") or {}).get("shipping_address") or []
+                pickup_name = str(((order.shipping_details or {}).get("pickup_location") or "Primary")).strip().lower()
+                matched = next(
+                    (
+                        p for p in locations
+                        if str(p.get("pickup_location") or "").strip().lower() == pickup_name
+                    ),
+                    None,
+                )
+                if not matched and locations:
+                    matched = locations[0]
+                pickup_postcode = str((matched or {}).get("pin_code") or "")
+            except Exception:
+                pickup_postcode = None
+
+            if not pickup_postcode:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Courier ID not provided and pickup location pincode could not be resolved from Shiprocket.",
+                )
+
+            sr_serviceability = await check_serviceability(
+                pickup_postcode=pickup_postcode,
+                delivery_postcode=str(addr.pincode),
+                weight=float((order.shipping_details or {}).get("package_weight", 0.5) or 0.5),
+                cod=0,
             )
+            auto_courier_id = pick_best_courier_id(sr_serviceability)
+            if not auto_courier_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No serviceable courier found. Please provide courier_id manually.",
+                )
+            awb_resp = await assign_awb(
+                shipment_id=str(order.shiprocket_shipment_id),
+                courier_id=auto_courier_id,
+            )
+            awb_data = (((awb_resp or {}).get("response") or {}).get("data") or {})
+            if awb_data.get("awb_code") and not order.tracking_id:
+                order.tracking_id = str(awb_data.get("awb_code"))
         pickup_resp = await create_pickup(str(order.shiprocket_shipment_id))
     except HTTPException:
         raise
@@ -893,7 +992,12 @@ async def update_shiprocket_order(
         update_resp = await update_order_adhoc(payload)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Shiprocket update failed: {e}")
-    sd = order.shipping_details or {}
+    sd = dict(order.shipping_details or {})
+    sd["pickup_location"] = body.pickup_location
+    sd["package_length"] = body.package_length
+    sd["package_width"] = body.package_width
+    sd["package_height"] = body.package_height
+    sd["package_weight"] = body.package_weight
     sd["shiprocket_update_response"] = update_resp
     order.shipping_details = sd
     await db.commit()

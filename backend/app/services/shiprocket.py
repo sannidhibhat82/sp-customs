@@ -138,6 +138,54 @@ async def get_rates(
     )
 
 
+async def get_pickup_locations() -> Dict[str, Any]:
+    """
+    Fetch company pickup locations.
+    GET /settings/company/pickup
+    """
+    return await _request("GET", "/settings/company/pickup")
+
+
+def pick_best_courier_id(serviceability_resp: Dict[str, Any]) -> Optional[int]:
+    """
+    Pick a courier_id from Shiprocket serviceability response.
+    Works with slightly different response shapes.
+    """
+    data = serviceability_resp.get("data") if isinstance(serviceability_resp, dict) else None
+    companies: List[Dict[str, Any]] = []
+
+    if isinstance(data, dict):
+        companies = data.get("available_courier_companies") or data.get("courier_data") or []
+    elif isinstance(data, list):
+        companies = data
+    elif isinstance(serviceability_resp, dict):
+        companies = serviceability_resp.get("available_courier_companies") or []
+
+    if not companies:
+        return None
+
+    # Prefer lowest total freight (best-price style fallback).
+    def _price(c: Dict[str, Any]) -> float:
+        for key in ("rate", "freight_charge", "courier_price", "estimated_charges"):
+            try:
+                if c.get(key) is not None:
+                    return float(c.get(key))
+            except Exception:
+                pass
+        return 1e12
+
+    sorted_companies = sorted(companies, key=_price)
+    for c in sorted_companies:
+        cid = c.get("courier_company_id") or c.get("courier_id")
+        if cid is None:
+            continue
+        try:
+            return int(cid)
+        except Exception:
+            continue
+    return None
+
+
 # ---------- Order creation ----------
 
 

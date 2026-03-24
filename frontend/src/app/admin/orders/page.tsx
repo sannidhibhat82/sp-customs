@@ -45,6 +45,13 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
@@ -2001,6 +2008,57 @@ function OrderDetailView({
     package_weight: 0.5,
     pickup_location: 'Primary',
   });
+
+  const pickupLocationsQuery = useQuery({
+    queryKey: ['shiprocket-pickup-locations'],
+    queryFn: () => api.getShiprocketPickupLocations(),
+    enabled: showShiprocketModal || showShiprocketUpdateModal,
+    staleTime: 5 * 60 * 1000,
+  });
+  const pickupLocations = pickupLocationsQuery.data?.locations ?? [];
+
+  useEffect(() => {
+    setShiprocketForm({
+      package_length: 10,
+      package_width: 10,
+      package_height: 5,
+      package_weight: 0.5,
+      pickup_location: 'Primary',
+    });
+  }, [order.id]);
+
+  useEffect(() => {
+    if (!showShiprocketUpdateModal) return;
+    const sd = order.shipping_details || {};
+    setShiprocketForm({
+      package_length: Number(sd.package_length) || 10,
+      package_width: Number(sd.package_width) || 10,
+      package_height: Number(sd.package_height) || 5,
+      package_weight: Number(sd.package_weight) || 0.5,
+      pickup_location: String(sd.pickup_location || 'Primary'),
+    });
+  }, [showShiprocketUpdateModal, order.id]);
+
+  useEffect(() => {
+    if (!showShiprocketModal && !showShiprocketUpdateModal) return;
+    const locs = pickupLocationsQuery.data?.locations ?? [];
+    if (!locs.length || pickupLocationsQuery.isLoading) return;
+    setShiprocketForm((f) => {
+      if (locs.some((l) => l.pickup_location === f.pickup_location)) return f;
+      if (showShiprocketUpdateModal && String(f.pickup_location || '').trim()) return f;
+      const primary = locs.find((l) => l.is_primary);
+      return {
+        ...f,
+        pickup_location: primary?.pickup_location ?? locs[0].pickup_location,
+      };
+    });
+  }, [
+    showShiprocketModal,
+    showShiprocketUpdateModal,
+    pickupLocationsQuery.isLoading,
+    pickupLocationsQuery.data,
+  ]);
+
   const approveShiprocketMutation = useMutation({
     mutationFn: () => api.approveOrderShiprocket(order.id, shiprocketForm),
     onSuccess: () => {
@@ -2066,7 +2124,72 @@ function OrderDetailView({
       toast({ title: err.response?.data?.detail || 'Failed to update Shiprocket order', variant: 'destructive' });
     },
   });
-  
+
+  const renderShiprocketPickupField = (htmlId: string) => {
+    const locs = pickupLocations;
+    const value = shiprocketForm.pickup_location;
+    const inList = locs.some((l) => l.pickup_location === value);
+    const selectValue = inList ? value : '__manual__';
+    const selectedMeta = locs.find((l) => l.pickup_location === value);
+
+    return (
+      <div className="space-y-2">
+        <label className="text-sm font-medium" htmlFor={htmlId}>
+          Pickup location
+        </label>
+        {pickupLocationsQuery.isLoading && (
+          <p className="text-xs text-muted-foreground">Loading Shiprocket warehouses…</p>
+        )}
+        {pickupLocationsQuery.isError && (
+          <p className="text-xs text-amber-600 dark:text-amber-500">
+            Could not load warehouses. Enter the name exactly as it appears in Shiprocket.
+          </p>
+        )}
+        {locs.length > 0 && (
+          <Select
+            value={selectValue}
+            onValueChange={(v) => {
+              if (v === '__manual__') setShiprocketForm((f) => ({ ...f, pickup_location: '' }));
+              else setShiprocketForm((f) => ({ ...f, pickup_location: v }));
+            }}
+          >
+            <SelectTrigger id={htmlId} className="bg-background text-foreground">
+              <SelectValue placeholder="Choose warehouse" />
+            </SelectTrigger>
+            <SelectContent>
+              {locs.map((l) => (
+                <SelectItem key={l.pickup_location} value={l.pickup_location}>
+                  {l.pickup_location}
+                  {l.is_primary ? ' (primary)' : ''}
+                  {l.city || l.pin_code
+                    ? ` — ${[l.city, l.pin_code].filter(Boolean).join(', ')}`
+                    : ''}
+                </SelectItem>
+              ))}
+              <SelectItem value="__manual__">Other (type manually)</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        {selectedMeta && inList && (selectedMeta.address || selectedMeta.city) && (
+          <p className="text-xs text-muted-foreground">
+            {[selectedMeta.address, selectedMeta.city, selectedMeta.state, selectedMeta.pin_code]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        )}
+        {(!locs.length || selectValue === '__manual__') && (
+          <Input
+            id={locs.length ? `${htmlId}-manual` : htmlId}
+            value={value}
+            onChange={(e) => setShiprocketForm((f) => ({ ...f, pickup_location: e.target.value }))}
+            placeholder={locs.length ? 'Exact warehouse name' : 'e.g. Primary'}
+            className="mt-1"
+          />
+        )}
+      </div>
+    );
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -2385,14 +2508,7 @@ function OrderDetailView({
               />
             </div>
           </div>
-          <div>
-            <label className="text-sm font-medium">Pickup location</label>
-            <Input
-              value={shiprocketForm.pickup_location}
-              onChange={(e) => setShiprocketForm((f) => ({ ...f, pickup_location: e.target.value }))}
-              className="mt-1"
-            />
-          </div>
+          {renderShiprocketPickupField('sr-pickup-approve')}
           <div className="flex gap-2 pt-4">
             <Button variant="outline" onClick={() => setShowShiprocketModal(false)} className="flex-1">
               Cancel
@@ -2432,10 +2548,7 @@ function OrderDetailView({
               <Input type="number" min={0.1} step={0.1} value={shiprocketForm.package_weight} onChange={(e) => setShiprocketForm((f) => ({ ...f, package_weight: Number(e.target.value) || 0.5 }))} className="mt-1" />
             </div>
           </div>
-          <div>
-            <label className="text-sm font-medium">Pickup location</label>
-            <Input value={shiprocketForm.pickup_location} onChange={(e) => setShiprocketForm((f) => ({ ...f, pickup_location: e.target.value }))} className="mt-1" />
-          </div>
+          {renderShiprocketPickupField('sr-pickup-update')}
           <div className="flex gap-2 pt-4">
             <Button variant="outline" onClick={() => setShowShiprocketUpdateModal(false)} className="flex-1">Cancel</Button>
             <Button

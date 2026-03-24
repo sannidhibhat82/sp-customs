@@ -195,6 +195,21 @@ class ShiprocketUpdateOrderRequest(BaseModel):
     pickup_location: str = "Primary"
 
 
+class ShiprocketPickupLocationItem(BaseModel):
+    """One warehouse/pickup row from Shiprocket settings."""
+
+    pickup_location: str
+    pin_code: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    address: Optional[str] = None
+    is_primary: bool = False
+
+
+class ShiprocketPickupLocationsResponse(BaseModel):
+    locations: List[ShiprocketPickupLocationItem] = Field(default_factory=list)
+
+
 # For scanning products into order
 class OrderScanRequest(BaseModel):
     barcode: Optional[str] = None

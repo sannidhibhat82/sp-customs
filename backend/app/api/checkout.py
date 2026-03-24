@@ -481,7 +481,7 @@ async def create_razorpay_order(
     if not razorpay_order_id:
         raise HTTPException(status_code=502, detail="Razorpay response missing order id")
 
-    payment_info = order.payment_info or {}
+    payment_info = dict(order.payment_info or {})
     payment_info.update(
         {
             "gateway": "razorpay",
@@ -521,9 +521,22 @@ async def verify_razorpay_payment(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     if order.payment_status == "success":
+        # Idempotent verify: still persist Razorpay metadata if missing.
+        existing = dict(order.payment_info or {})
+        existing.update(
+            {
+                "gateway": "razorpay",
+                "status": "paid",
+                "razorpay_order_id": body.razorpay_order_id or existing.get("razorpay_order_id"),
+                "razorpay_payment_id": body.razorpay_payment_id or existing.get("razorpay_payment_id"),
+                "razorpay_signature": body.razorpay_signature or existing.get("razorpay_signature"),
+            }
+        )
+        order.payment_info = existing
+        await db.flush()
         return {"ok": True, "already": True}
 
-    payment_info = order.payment_info or {}
+    payment_info = dict(order.payment_info or {})
     expected_rp_order_id = payment_info.get("razorpay_order_id")
     if expected_rp_order_id and str(expected_rp_order_id) != str(body.razorpay_order_id):
         raise HTTPException(status_code=400, detail="Razorpay order mismatch")
@@ -537,7 +550,7 @@ async def verify_razorpay_payment(
         raise HTTPException(status_code=400, detail="Invalid payment signature")
 
     await _process_payment_success(order, db)
-    payment_info = order.payment_info or {}
+    payment_info = dict(order.payment_info or {})
     payment_info.update(
         {
             "gateway": "razorpay",
