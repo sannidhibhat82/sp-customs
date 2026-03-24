@@ -173,7 +173,7 @@ async def razorpay_payment_webhook(
     return {"received": True, "success": True, "event": event, "order_id": order.id, "order_number": order.order_number}
 
 
-@router.post("/shiprocket-shipping")
+@router.post("/shipping-status")
 async def shiprocket_shipping_status_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
