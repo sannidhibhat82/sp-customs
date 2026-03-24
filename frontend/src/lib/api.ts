@@ -759,6 +759,20 @@ class ApiClient {
     return response.data;
   }
 
+  async getShiprocketCouriers(orderId: number) {
+    const response = await this.client.get<{
+      couriers: Array<{
+        courier_id: number;
+        courier_name?: string | null;
+        rate?: number | string | null;
+        etd?: string | number | null;
+        rating?: number | string | null;
+        pickup_availability?: string | number | null;
+      }>;
+    }>(`/orders/${orderId}/shiprocket/couriers`);
+    return response.data;
+  }
+
   async cancelShiprocketOrder(orderId: number) {
     const response = await this.client.post(`/orders/${orderId}/shiprocket/cancel`);
     return response.data;

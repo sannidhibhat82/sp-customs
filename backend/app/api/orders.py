@@ -820,6 +820,7 @@ async def process_shiprocket_shipment(
         from app.services.shiprocket import (
             assign_awb,
             create_pickup,
+            generate_label,
             check_serviceability,
             get_pickup_locations,
             pick_best_courier_id,
@@ -887,18 +888,95 @@ async def process_shiprocket_shipment(
                 order.tracking_id = str(awb_code)
 
         pickup_resp = await create_pickup(str(order.shiprocket_shipment_id))
+        label_resp = await generate_label(str(order.shiprocket_shipment_id))
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Shiprocket shipment processing failed: {e}")
 
-    sd = order.shipping_details or {}
+    sd = dict(order.shipping_details or {})
     sd["shiprocket_awb_response"] = awb_resp
     sd["shiprocket_pickup_response"] = pickup_resp
+    sd["shiprocket_label_response"] = label_resp
+    if label_resp.get("label_url"):
+        sd["shiprocket_label_url"] = label_resp.get("label_url")
     order.shipping_details = sd
     await db.commit()
     await db.refresh(order)
     return {"success": True, "order_id": order.id, "tracking_id": order.tracking_id}
+
+
+@router.get("/{order_id}/shiprocket/couriers")
+async def list_shiprocket_couriers(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+):
+    """List serviceable couriers for an order (for optional admin selection)."""
+    result = await db.execute(select(Order).where(Order.id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    addr_result = await db.execute(select(OrderAddress).where(OrderAddress.order_id == order.id))
+    addr = addr_result.scalar_one_or_none()
+    if not addr:
+        raise HTTPException(status_code=400, detail="Order has no shipping address")
+
+    try:
+        from app.services.shiprocket import check_serviceability, get_pickup_locations
+        pickup_resp = await get_pickup_locations()
+        locations = ((pickup_resp or {}).get("data") or {}).get("shipping_address") or []
+        pickup_name = str(((order.shipping_details or {}).get("pickup_location") or "Primary")).strip().lower()
+        matched = next(
+            (
+                p for p in locations
+                if str(p.get("pickup_location") or "").strip().lower() == pickup_name
+            ),
+            None,
+        )
+        if not matched and locations:
+            matched = locations[0]
+        pickup_postcode = str((matched or {}).get("pin_code") or "")
+        if not pickup_postcode:
+            raise HTTPException(
+                status_code=400,
+                detail="Pickup location pincode could not be resolved from Shiprocket.",
+            )
+
+        sr_serviceability = await check_serviceability(
+            pickup_postcode=pickup_postcode,
+            delivery_postcode=str(addr.pincode),
+            weight=float((order.shipping_details or {}).get("package_weight", 0.5) or 0.5),
+            cod=0,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch couriers: {e}")
+
+    available = ((sr_serviceability.get("data") or {}).get("available_courier_companies") or [])
+    couriers = []
+    for c in available:
+        cid = c.get("courier_company_id") or c.get("courier_id")
+        if cid is None:
+            continue
+        try:
+            courier_id = int(cid)
+        except Exception:
+            continue
+        couriers.append(
+            {
+                "courier_id": courier_id,
+                "courier_name": c.get("courier_name"),
+                "rate": c.get("rate") or c.get("freight_charge"),
+                "etd": c.get("etd") or c.get("estimated_delivery_days"),
+                "rating": c.get("rating"),
+                "pickup_availability": c.get("pickup_availability"),
+            }
+        )
+
+    return {"couriers": couriers}
 
 
 @router.post("/{order_id}/shiprocket/refresh-docs")

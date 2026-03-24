@@ -2001,6 +2001,8 @@ function OrderDetailView({
 }: any) {
   const [showShiprocketModal, setShowShiprocketModal] = useState(false);
   const [showShiprocketUpdateModal, setShowShiprocketUpdateModal] = useState(false);
+  const [showShiprocketProcessModal, setShowShiprocketProcessModal] = useState(false);
+  const [selectedCourierId, setSelectedCourierId] = useState<string>('auto');
   const [shiprocketForm, setShiprocketForm] = useState({
     package_length: 10,
     package_width: 10,
@@ -2016,6 +2018,13 @@ function OrderDetailView({
     staleTime: 5 * 60 * 1000,
   });
   const pickupLocations = pickupLocationsQuery.data?.locations ?? [];
+  const shiprocketCouriersQuery = useQuery({
+    queryKey: ['shiprocket-couriers', order.id],
+    queryFn: () => api.getShiprocketCouriers(order.id),
+    enabled: showShiprocketProcessModal && !!order.shiprocket_order_id,
+    staleTime: 60 * 1000,
+  });
+  const shiprocketCouriers = shiprocketCouriersQuery.data?.couriers ?? [];
 
   useEffect(() => {
     setShiprocketForm({
@@ -2058,6 +2067,12 @@ function OrderDetailView({
     pickupLocationsQuery.isLoading,
     pickupLocationsQuery.data,
   ]);
+
+  useEffect(() => {
+    if (showShiprocketProcessModal) {
+      setSelectedCourierId('auto');
+    }
+  }, [showShiprocketProcessModal, order.id]);
 
   const approveShiprocketMutation = useMutation({
     mutationFn: () => api.approveOrderShiprocket(order.id, shiprocketForm),
@@ -2252,15 +2267,7 @@ function OrderDetailView({
                         <span>Sync Docs</span>
                       </button>
                       <button
-                        onClick={() => {
-                          const raw = window.prompt('Courier ID (optional if AWB is already assigned):', '');
-                          const courierId = raw && raw.trim() ? Number(raw.trim()) : undefined;
-                          if (raw && raw.trim() && Number.isNaN(courierId)) {
-                            toast({ title: 'Invalid courier ID', variant: 'destructive' });
-                            return;
-                          }
-                          processShipmentMutation.mutate(courierId ? { courier_id: courierId } : undefined);
-                        }}
+                        onClick={() => setShowShiprocketProcessModal(true)}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-secondary transition-colors"
                       >
                         <Package className="w-4 h-4 text-muted-foreground" />
@@ -2551,6 +2558,67 @@ function OrderDetailView({
               onClick={() => updateShiprocketMutation.mutate(undefined, { onSuccess: () => setShowShiprocketUpdateModal(false) })}
             >
               {updateShiprocketMutation.isPending ? 'Updating…' : 'Update'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showShiprocketProcessModal} onOpenChange={setShowShiprocketProcessModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Shiprocket Shipment</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-3">
+            Choose a courier or keep auto-select (recommended).
+          </p>
+          <div>
+            <label className="text-sm font-medium">Courier</label>
+            <Select value={selectedCourierId} onValueChange={setSelectedCourierId}>
+              <SelectTrigger className="mt-1 bg-background text-foreground">
+                <SelectValue placeholder="Select courier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto select best courier</SelectItem>
+                {shiprocketCouriers.map((c) => (
+                  <SelectItem key={String(c.courier_id)} value={String(c.courier_id)}>
+                    {c.courier_name || `Courier ${c.courier_id}`}
+                    {c.rate !== null && c.rate !== undefined ? ` - Rs ${c.rate}` : ''}
+                    {c.etd ? ` - ${c.etd}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {shiprocketCouriersQuery.isLoading && (
+              <p className="text-xs text-muted-foreground mt-2">Loading available couriers…</p>
+            )}
+            {shiprocketCouriersQuery.isError && (
+              <p className="text-xs text-amber-600 dark:text-amber-500 mt-2">
+                Could not load couriers. Auto-select will be used.
+              </p>
+            )}
+          </div>
+          <div className="flex gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowShiprocketProcessModal(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={processShipmentMutation.isPending}
+              onClick={() => {
+                const payload =
+                  selectedCourierId !== 'auto'
+                    ? { courier_id: Number(selectedCourierId) }
+                    : undefined;
+                processShipmentMutation.mutate(payload, {
+                  onSuccess: () => setShowShiprocketProcessModal(false),
+                });
+              }}
+            >
+              {processShipmentMutation.isPending ? 'Processing…' : 'Create Shipment'}
             </Button>
           </div>
         </DialogContent>
