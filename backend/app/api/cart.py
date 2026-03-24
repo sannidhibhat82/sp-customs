@@ -42,12 +42,26 @@ async def _get_or_create_cart(
     """Get active cart for user or guest, or create one."""
     carts = []
     if user_id:
+        # Logged-in flow: include both user carts and guest-session carts so
+        # post-login checkout can seamlessly continue with items added before login.
         result = await db.execute(
             _cart_selector()
             .where(Cart.user_id == user_id, Cart.status == "active")
             .order_by(Cart.updated_at.desc(), Cart.id.desc())
         )
-        carts = result.scalars().unique().all()
+        user_carts = result.scalars().unique().all()
+
+        guest_carts = []
+        if guest_session_id:
+            guest_result = await db.execute(
+                _cart_selector()
+                .where(Cart.guest_session_id == guest_session_id, Cart.status == "active")
+                .order_by(Cart.updated_at.desc(), Cart.id.desc())
+            )
+            guest_carts = guest_result.scalars().unique().all()
+
+        carts = user_carts + [c for c in guest_carts if c.id not in {uc.id for uc in user_carts}]
+        carts.sort(key=lambda c: (c.updated_at or c.created_at, c.id), reverse=True)
     elif guest_session_id:
         result = await db.execute(
             _cart_selector().where(
@@ -63,12 +77,18 @@ async def _get_or_create_cart(
         # Data hygiene: if duplicate active carts exist, merge all items into the newest cart
         # and archive the duplicates so future lookups are stable.
         primary = carts[0]
+        if user_id and primary.user_id is None:
+            primary.user_id = user_id
+        if guest_session_id and not primary.guest_session_id:
+            primary.guest_session_id = guest_session_id
         if len(carts) > 1:
             merged: dict[tuple[int, Optional[int]], CartItem] = {}
             for item in primary.items:
                 merged[(item.product_id, item.variant_id)] = item
 
             for duplicate in carts[1:]:
+                if user_id and duplicate.user_id is None:
+                    duplicate.user_id = user_id
                 for item in duplicate.items:
                     key = (item.product_id, item.variant_id)
                     existing = merged.get(key)
