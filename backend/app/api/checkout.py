@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, or_
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
@@ -131,13 +131,21 @@ async def _get_cart_for_checkout(
         .where(Cart.id == cart_id, Cart.status == "active")
     )
     if user_id:
-        q = q.where(Cart.user_id == user_id)
+        # Post-login checkout can still point to the guest cart id.
+        # Allow either owner's active cart, then attach guest cart to user.
+        if guest_session_id:
+            q = q.where(or_(Cart.user_id == user_id, Cart.guest_session_id == guest_session_id))
+        else:
+            q = q.where(Cart.user_id == user_id)
     else:
         q = q.where(Cart.guest_session_id == guest_session_id)
     result = await db.execute(q)
     cart = result.scalar_one_or_none()
     if not cart:
         raise HTTPException(status_code=404, detail="Cart not found or already converted")
+    if user_id and cart.user_id is None:
+        cart.user_id = user_id
+        await db.flush()
     return cart
 
 
