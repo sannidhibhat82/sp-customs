@@ -207,6 +207,8 @@ export default function OrdersPage() {
   
   // Filter orders by search query
   const filteredOrders = orders.filter((order: any) => {
+    // Show only successfully paid orders in admin list view.
+    if (String(order.payment_status || '').toLowerCase() !== 'success') return false;
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (

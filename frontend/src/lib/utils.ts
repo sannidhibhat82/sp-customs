@@ -65,8 +65,14 @@ export function getPhoneUrl(): string {
 
 export function getImageSrc(imageData: string | null | undefined): string {
   if (!imageData) return "/placeholder-product.png";
-  if (imageData.startsWith("http")) return imageData;
-  if (imageData.startsWith("data:")) return imageData;
+  const normalized = imageData.trim();
+  if (normalized.startsWith("http")) return normalized;
+  if (normalized.startsWith("data:")) return normalized;
+  // Support relative/static image paths served by backend/CDN
+  if (normalized.startsWith("/")) return normalized;
+  if (normalized.startsWith("api/") || normalized.startsWith("./") || normalized.startsWith("../")) {
+    return normalized;
+  }
   
   // Detect image type from base64 prefix
   // SVG starts with PHN2Z (base64 for "<svg") or PD94b (<?xml)
@@ -74,19 +80,19 @@ export function getImageSrc(imageData: string | null | undefined): string {
   // PNG starts with iVBOR
   // GIF starts with R0lGO
   // WebP starts with UklGR
-  if (imageData.startsWith('PHN2Z') || imageData.startsWith('PD94b')) {
-    return `data:image/svg+xml;base64,${imageData}`;
-  } else if (imageData.startsWith('/9j/')) {
-    return `data:image/jpeg;base64,${imageData}`;
-  } else if (imageData.startsWith('iVBOR')) {
-    return `data:image/png;base64,${imageData}`;
-  } else if (imageData.startsWith('R0lGO')) {
-    return `data:image/gif;base64,${imageData}`;
-  } else if (imageData.startsWith('UklGR')) {
-    return `data:image/webp;base64,${imageData}`;
+  if (normalized.startsWith('PHN2Z') || normalized.startsWith('PD94b')) {
+    return `data:image/svg+xml;base64,${normalized}`;
+  } else if (normalized.startsWith('/9j/')) {
+    return `data:image/jpeg;base64,${normalized}`;
+  } else if (normalized.startsWith('iVBOR')) {
+    return `data:image/png;base64,${normalized}`;
+  } else if (normalized.startsWith('R0lGO')) {
+    return `data:image/gif;base64,${normalized}`;
+  } else if (normalized.startsWith('UklGR')) {
+    return `data:image/webp;base64,${normalized}`;
   }
   // Default to JPEG for unknown types
-  return `data:image/jpeg;base64,${imageData}`;
+  return `data:image/jpeg;base64,${normalized}`;
 }
 
 export function truncate(str: string, length: number): string {

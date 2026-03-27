@@ -107,6 +107,12 @@ async def _process_payment_success(order: Order, db: AsyncSession) -> None:
                     vi.quantity = max(0, vi.quantity - item.quantity)
     order.payment_status = "success"
     order.payment_info = {**(order.payment_info or {}), "status": "paid"}
+    # Convert cart only after confirmed payment so cancel/back keeps cart intact.
+    if order.cart_id:
+        cart_result = await db.execute(select(Cart).where(Cart.id == order.cart_id))
+        cart = cart_result.scalar_one_or_none()
+        if cart and cart.status == "active":
+            cart.status = "converted"
     await db.flush()
     # Shiprocket order is created by admin after approval (with package dimensions)
 
@@ -125,7 +131,7 @@ async def _get_cart_for_checkout(
     q = (
         select(Cart)
         .options(
-            selectinload(Cart.items).selectinload(CartItem.product),
+            selectinload(Cart.items).selectinload(CartItem.product).selectinload(Product.images),
             selectinload(Cart.items).selectinload(CartItem.variant),
         )
         .where(Cart.id == cart_id, Cart.status == "active")
@@ -282,7 +288,7 @@ async def create_checkout_order(
             "quantity": item.quantity,
             "discount": Decimal(0),
             "total": line_total,
-            "product_image": None,  # Avoid lazy load (primary_image uses product.images)
+            "product_image": product.primary_image if product else None,
         })
     # Logged-in customer discount (from admin-configured percentage)
     discount_amount = Decimal(0)
@@ -404,8 +410,7 @@ async def create_checkout_order(
                 )
             )
 
-    # Mark cart as converted
-    cart.status = "converted"
+    # Keep cart active until payment is confirmed.
     await db.flush()
     await db.refresh(order)
 

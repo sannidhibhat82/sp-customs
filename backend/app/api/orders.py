@@ -183,12 +183,17 @@ async def get_my_order(
         raise HTTPException(status_code=401, detail="Login required")
     result = await db.execute(
         select(Order)
-        .options(selectinload(Order.items))
+        .options(
+            selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.images)
+        )
         .where(Order.id == order_id, Order.created_by_id == current_user.id)
     )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    for item in order.items:
+        if not item.product_image and item.product:
+            item.product_image = item.product.primary_image
     return OrderResponse(
         id=order.id,
         uuid=order.uuid,
@@ -632,12 +637,31 @@ async def get_order_by_uuid_public(
     """
     result = await db.execute(
         select(Order)
-        .options(selectinload(Order.items))
+        .options(
+            selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.images),
+            selectinload(Order.order_address),
+        )
         .where(Order.uuid == order_uuid)
     )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    items = []
+    for item in order.items:
+        product_image = item.product_image
+        if not product_image and item.product:
+            product_image = item.product.primary_image
+        items.append(
+            {
+                "id": item.id,
+                "product_name": item.product_name,
+                "variant_name": item.variant_name,
+                "quantity": item.quantity,
+                "unit_price": float(item.unit_price or 0),
+                "total": float(item.total or 0),
+                "product_image": product_image,
+            }
+        )
     return {
         "id": order.id,
         "uuid": order.uuid,
@@ -647,6 +671,17 @@ async def get_order_by_uuid_public(
         "shipment_status": order.shipment_status,
         "total": float(order.total),
         "item_count": len(order.items),
+        "items": items,
+        "shipping_info": order.shipping_info or {},
+        "order_address": {
+            "name": order.order_address.name if order.order_address else None,
+            "phone": order.order_address.phone if order.order_address else None,
+            "address": order.order_address.address if order.order_address else None,
+            "city": order.order_address.city if order.order_address else None,
+            "state": order.order_address.state if order.order_address else None,
+            "pincode": order.order_address.pincode if order.order_address else None,
+            "country": order.order_address.country if order.order_address else None,
+        } if order.order_address else None,
         "created_at": order.created_at.isoformat() if order.created_at else None,
     }
 
@@ -660,13 +695,18 @@ async def get_order(
     """Get a specific order."""
     result = await db.execute(
         select(Order)
-        .options(selectinload(Order.items))
+        .options(
+            selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.images)
+        )
         .where(Order.id == order_id)
     )
     order = result.scalar_one_or_none()
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    for item in order.items:
+        if not item.product_image and item.product:
+            item.product_image = item.product.primary_image
     
     return OrderResponse(
         id=order.id,

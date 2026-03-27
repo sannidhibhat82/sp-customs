@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Menu,
@@ -20,7 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { usePublicThemeStore, useUIStore } from '@/lib/store';
-import { cn, getWhatsAppUrl } from '@/lib/utils';
+import { cn, getImageSrc, getWhatsAppUrl } from '@/lib/utils';
 import { api } from '@/lib/api';
 import LoginModal from '@/components/public/LoginModal';
 
@@ -54,6 +55,7 @@ export default function Header() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [authRefresh, setAuthRefresh] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const isPublicSite = !pathname.startsWith('/admin');
   const hasCustomerToken = mounted && isPublicSite && !!api.getToken();
   void authRefresh; // force re-render when token changes (login/logout)
@@ -61,6 +63,13 @@ export default function Header() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -119,6 +128,19 @@ export default function Header() {
       setSearchQuery('');
     }
   };
+
+  const { data: suggestedProductsData } = useQuery({
+    queryKey: ['header-search-suggestions', debouncedSearchQuery],
+    queryFn: () =>
+      api.getProducts({
+        is_active: true,
+        page_size: 6,
+        search: debouncedSearchQuery || undefined,
+      }),
+    enabled: showSearch,
+    staleTime: 1000 * 60,
+  });
+  const suggestedProducts = suggestedProductsData?.items || [];
 
   return (
     <>
@@ -401,24 +423,44 @@ export default function Header() {
                   </div>
                 </form>
                 
-                {/* Quick Links */}
+                {/* Related product suggestions */}
                 <div className="px-4 pb-4 pt-2 border-t border-border">
-                  <p className="text-xs text-muted-foreground mb-2">Popular searches</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['Car Audio', 'Phone Mount', 'Dash Camera', 'LED Lights'].map((term) => (
-                      <button
-                        key={term}
-                        type="button"
-                        onClick={() => {
-                          router.push(`/products?search=${encodeURIComponent(term)}`);
-                          setShowSearch(false);
-                        }}
-                        className="px-3 py-1.5 text-sm bg-secondary hover:bg-secondary/80 rounded-full transition-colors"
-                      >
-                        {term}
-                      </button>
-                    ))}
-                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {debouncedSearchQuery ? 'Related products' : 'Suggested products'}
+                  </p>
+                  {suggestedProducts.length > 0 ? (
+                    <div className="space-y-2">
+                      {suggestedProducts.map((product: any) => (
+                        <Link
+                          key={product.id}
+                          href={`/products/${product.slug || product.id}`}
+                          onClick={() => {
+                            setShowSearch(false);
+                            setSearchQuery('');
+                          }}
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/60 transition-colors"
+                        >
+                          <div className="w-10 h-10 rounded-md overflow-hidden bg-secondary/50 shrink-0">
+                            {product.primary_image ? (
+                              <img
+                                src={getImageSrc(product.primary_image)}
+                                alt={product.name || ''}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : null}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{product.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {product.brand?.name || product.category?.name || 'SP Customs'}
+                            </p>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-1">No matching products found.</p>
+                  )}
                 </div>
               </div>
               

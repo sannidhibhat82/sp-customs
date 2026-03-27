@@ -8,7 +8,7 @@ import { CreditCard, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Header, Footer } from '@/components/public';
 import { api } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getImageSrc } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
 
 declare global {
@@ -171,7 +171,7 @@ function CheckoutPaymentContent() {
             </Link>
           </div>
         ) : (
-          <div className="max-w-lg mx-auto py-12">
+          <div className="max-w-3xl mx-auto py-12">
             <div className="rounded-xl border border-border bg-card p-6 mb-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -193,6 +193,64 @@ function CheckoutPaymentContent() {
                 Click Pay to open Razorpay checkout. On success, we verify and confirm your order.
               </p>
             </div>
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h2 className="font-semibold mb-3">Order preview</h2>
+                <ul className="space-y-3 max-h-72 overflow-y-auto">
+                  {(order.items || []).map((item: any) => (
+                    <li key={item.id} className="flex gap-3">
+                      <div className="w-12 h-12 rounded bg-secondary/50 overflow-hidden flex-shrink-0">
+                        {item.product_image ? (
+                          <img
+                            src={getImageSrc(item.product_image)}
+                            alt={item.product_name || ''}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{item.product_name}</p>
+                        {item.variant_name ? (
+                          <p className="text-xs text-muted-foreground truncate">{item.variant_name}</p>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground">
+                          {item.quantity} × {formatCurrency(item.unit_price)}
+                        </p>
+                      </div>
+                      <div className="text-sm font-medium">{formatCurrency(item.total)}</div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h2 className="font-semibold mb-3">Shipping address</h2>
+                {order.order_address || order.shipping_info ? (
+                  <div className="text-sm space-y-1">
+                    <p className="font-medium">
+                      {order.order_address?.name || order.shipping_info?.customer_name || '—'}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {order.order_address?.phone || order.shipping_info?.phone || '—'}
+                    </p>
+                    <p>
+                      {order.order_address?.address || order.shipping_info?.address_line1 || '—'}
+                    </p>
+                    {(order.order_address?.city || order.shipping_info?.city) ? (
+                      <p>
+                        {order.order_address?.city || order.shipping_info?.city}
+                        {', '}
+                        {order.order_address?.state || order.shipping_info?.state}
+                        {' - '}
+                        {order.order_address?.pincode || order.shipping_info?.postal_code}
+                      </p>
+                    ) : null}
+                    <p>{order.order_address?.country || order.shipping_info?.country || 'India'}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No address available.</p>
+                )}
+              </div>
+            </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 className="flex-1"
@@ -202,10 +260,10 @@ function CheckoutPaymentContent() {
               >
                 {openRazorpayMutation.isPending || verifyPaymentMutation.isPending ? 'Processing…' : `Pay ${formatCurrency(order.total)}`}
               </Button>
-              <Link href="/cart" className="flex-1">
+              <Link href="/checkout" className="flex-1">
                 <Button variant="outline" size="lg" className="w-full">
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Cancel
+                  Back to checkout
                 </Button>
               </Link>
             </div>

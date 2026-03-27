@@ -29,7 +29,7 @@ router = APIRouter()
 
 def _cart_selector():
     return select(Cart).options(
-        selectinload(Cart.items).selectinload(CartItem.product),
+        selectinload(Cart.items).selectinload(CartItem.product).selectinload(Product.images),
         selectinload(Cart.items).selectinload(CartItem.variant),
     )
 
@@ -127,8 +127,7 @@ def _cart_item_to_response(item: CartItem) -> CartItemResponse:
     product_sku = product.sku if product else None
     product_slug = getattr(product, "slug", None) if product else None
     variant_name = variant.name if variant else None
-    # Avoid lazy load in async context: only use eagerly loaded data (image_data left None here)
-    image_data = None
+    image_data = product.primary_image if product else None
     return CartItemResponse(
         id=item.id,
         uuid=item.uuid,
