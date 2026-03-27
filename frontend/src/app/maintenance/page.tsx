@@ -34,7 +34,7 @@ export default function MaintenancePage() {
           <div className="border-t border-border pt-6">
             <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
               <Mail className="w-4 h-4" />
-              Questions? Contact us at contact@spcustoms.com
+              Questions? Contact us at contact@spcustoms.in
             </p>
           </div>
         </div>

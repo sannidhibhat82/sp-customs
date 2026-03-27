@@ -161,7 +161,7 @@ export default function PrivacyPage() {
                     please contact us at:
                   </p>
                   <ul className="list-none mt-4 space-y-2">
-                    <li><strong>Email:</strong> contact@spcustoms.com</li>
+                    <li><strong>Email:</strong> contact@spcustoms.in</li>
                     <li><strong>Phone:</strong> Contact via WhatsApp or website</li>
                     <li><strong>Address:</strong> 377/6, Kottara, Mangaluru, Karnataka 575006</li>
                   </ul>

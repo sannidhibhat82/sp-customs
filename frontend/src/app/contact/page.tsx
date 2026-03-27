@@ -153,7 +153,7 @@ ${form.message}
 
               {/* Email */}
               <a
-                href="mailto:contact@spcustoms.com"
+                href="mailto:contact@spcustoms.in"
                 className="flex items-start gap-4 p-4 bg-card rounded-xl border border-border hover:border-primary transition-colors group"
               >
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
@@ -161,7 +161,7 @@ ${form.message}
                 </div>
                 <div>
                   <h3 className="font-semibold mb-1">Email</h3>
-                  <p className="text-muted-foreground">contact@spcustoms.com</p>
+                  <p className="text-muted-foreground">contact@spcustoms.in</p>
                   <p className="text-xs text-primary mt-1">We reply within 24 hours</p>
                 </div>
               </a>

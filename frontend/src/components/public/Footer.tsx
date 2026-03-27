@@ -119,9 +119,9 @@ export default function Footer() {
                 <Phone className="w-4 h-4" />
                 {PHONE_DISPLAY}
               </a>
-              <a href="mailto:contact@spcustoms.com" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors">
+              <a href="mailto:contact@spcustoms.in" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors">
                 <Mail className="w-4 h-4" />
-                contact@spcustoms.com
+                contact@spcustoms.in
               </a>
               <a 
                 href="https://maps.google.com/?q=377/6,+Kottara,+Mangaluru,+Karnataka+575006" 

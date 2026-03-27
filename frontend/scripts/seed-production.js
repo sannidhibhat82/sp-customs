@@ -283,7 +283,7 @@ const homepageContent = {
   settings: [
     { key: 'store_name', value: 'SP Customs', description: 'Store name displayed on the website' },
     { key: 'store_tagline', value: 'Premium Vehicle Gadgets', description: 'Store tagline' },
-    { key: 'contact_email', value: 'contact@spcustoms.com', description: 'Contact email address' },
+    { key: 'contact_email', value: 'contact@spcustoms.in', description: 'Contact email address' },
     { key: 'contact_phone', value: '+91 9876543210', description: 'Contact phone number' },
     { key: 'whatsapp_number', value: '919876543210', description: 'WhatsApp number for inquiries' },
     { key: 'instagram_url', value: 'https://instagram.com/spcustoms', description: 'Instagram profile URL' },

@@ -116,7 +116,7 @@ export const useStoreSettingsStore = create<StoreSettingsState>()(
     (set) => ({
       storeSettings: {
         store_name: 'SP Customs',
-        store_email: 'contact@spcustoms.com',
+        store_email: 'contact@spcustoms.in',
         store_phone: '+91 98765 43210',
         store_address: 'Bangalore, Karnataka, India',
         currency: 'INR',

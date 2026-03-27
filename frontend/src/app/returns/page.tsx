@@ -79,7 +79,7 @@ export default function RefundPolicyPage() {
                 <h2 className="text-xl font-bold mb-4">3. How to Request a Return or Refund</h2>
                 <div className="text-muted-foreground space-y-4">
                   <p>
-                    To initiate a return or refund, contact us within 7 days of delivery via email at contact@spcustoms.com or through our website/WhatsApp, and provide your order number and reason for the request. We will review your request and inform you whether it is eligible. For approved returns, you must pack the product securely in its original packaging (where possible) and send it back or arrange pickup as we instruct. Once we receive and verify the product, we will process the refund in accordance with this policy.
+                    To initiate a return or refund, contact us within 7 days of delivery via email at contact@spcustoms.in or through our website/WhatsApp, and provide your order number and reason for the request. We will review your request and inform you whether it is eligible. For approved returns, you must pack the product securely in its original packaging (where possible) and send it back or arrange pickup as we instruct. Once we receive and verify the product, we will process the refund in accordance with this policy.
                   </p>
                 </div>
               </div>
@@ -115,7 +115,7 @@ export default function RefundPolicyPage() {
                 <h2 className="text-xl font-bold mb-4">7. Disputes and Refusal</h2>
                 <div className="text-muted-foreground space-y-4">
                   <p>
-                    We reserve the right to refuse returns that do not meet the conditions in this policy or that appear to be fraudulent. If you disagree with our decision, you may contact us at contact@spcustoms.com with your order details and we will try to resolve the matter in good faith.
+                    We reserve the right to refuse returns that do not meet the conditions in this policy or that appear to be fraudulent. If you disagree with our decision, you may contact us at contact@spcustoms.in with your order details and we will try to resolve the matter in good faith.
                   </p>
                 </div>
               </div>
@@ -136,7 +136,7 @@ export default function RefundPolicyPage() {
                     For questions about returns or refunds, or this policy, contact us at:
                   </p>
                   <ul className="list-none mt-4 space-y-2">
-                    <li><strong>Email:</strong> contact@spcustoms.com</li>
+                    <li><strong>Email:</strong> contact@spcustoms.in</li>
                     <li><strong>Phone:</strong> Contact via WhatsApp or website</li>
                     <li><strong>Address:</strong> 377/6, Kottara, Mangaluru, Karnataka 575006</li>
                   </ul>

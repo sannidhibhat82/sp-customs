@@ -1173,7 +1173,7 @@ function generateInvoiceHTML(order: any, shipping: any, storeSettings: any) {
         <div class="company-details">
           ${storeSettings.store_address || 'Bangalore, Karnataka, India'}<br>
           ${storeSettings.store_phone || '+91 98765 43210'}<br>
-          ${storeSettings.store_email || 'contact@spcustoms.com'}
+          ${storeSettings.store_email || 'contact@spcustoms.in'}
         </div>
       </div>
       <div class="invoice-title">
@@ -2838,7 +2838,7 @@ function InvoicePreview({
           <div className="mt-8 pt-6 border-t border-border text-center">
             <p className="text-lg font-semibold text-primary">🙏 Thank you for your business!</p>
             <p className="text-muted-foreground text-sm mt-2">
-              For any queries, contact us at {storeSettings.store_phone || '+91 98765 43210'} | {storeSettings.store_email || 'contact@spcustoms.com'}
+              For any queries, contact us at {storeSettings.store_phone || '+91 98765 43210'} | {storeSettings.store_email || 'contact@spcustoms.in'}
             </p>
           </div>
         </CardContent>
