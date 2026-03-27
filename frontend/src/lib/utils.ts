@@ -68,11 +68,6 @@ export function getImageSrc(imageData: string | null | undefined): string {
   const normalized = imageData.trim();
   if (normalized.startsWith("http")) return normalized;
   if (normalized.startsWith("data:")) return normalized;
-  // Support relative/static image paths served by backend/CDN
-  if (normalized.startsWith("/")) return normalized;
-  if (normalized.startsWith("api/") || normalized.startsWith("./") || normalized.startsWith("../")) {
-    return normalized;
-  }
   
   // Detect image type from base64 prefix
   // SVG starts with PHN2Z (base64 for "<svg") or PD94b (<?xml)
@@ -91,6 +86,14 @@ export function getImageSrc(imageData: string | null | undefined): string {
   } else if (normalized.startsWith('UklGR')) {
     return `data:image/webp;base64,${normalized}`;
   }
+
+  // Support relative/static image paths served by backend/CDN.
+  // Keep this after base64 signature checks because JPEG base64 starts with "/9j/".
+  if (normalized.startsWith("/")) return normalized;
+  if (normalized.startsWith("api/") || normalized.startsWith("./") || normalized.startsWith("../")) {
+    return normalized;
+  }
+
   // Default to JPEG for unknown types
   return `data:image/jpeg;base64,${normalized}`;
 }
