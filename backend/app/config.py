@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     # Public base URL for building absolute links in external integrations
     # (can be overridden via env, e.g. PUBLIC_BASE_URL="https://spcustoms.in")
     PUBLIC_BASE_URL: str = "http://localhost:8000"
+    # Optional alias used in some .env files (ignored unless you read it in code)
+    BACKEND_BASE_URL: Optional[str] = None
     
     # Shiprocket (shipping, labels, invoices, tracking - API only, no dashboard dependency)
     SHIPROCKET_BASE_URL: str = "https://apiv2.shiprocket.in/v1/external"
@@ -82,12 +84,25 @@ class Settings(BaseSettings):
     # Feature flag: enable Book Now / checkout flow
     ENABLE_BOOK_NOW: bool = True
     
-    # Customer OTP login (Twilio); when not set, dummy OTP used for development
+    # Customer OTP login: WhatsApp (Meta Cloud API) when configured; else dummy OTP for dev
     OTP_DUMMY_FOR_DEV: bool = True
     OTP_DUMMY_CODE: str = "123456"
-    TWILIO_ACCOUNT_SID: Optional[str] = None
-    TWILIO_AUTH_TOKEN: Optional[str] = None
-    TWILIO_PHONE_NUMBER: Optional[str] = None
+    # WhatsApp Cloud API — https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started
+    WHATSAPP_ACCESS_TOKEN: Optional[str] = None
+    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = None
+    WHATSAPP_GRAPH_API_VERSION: str = "v21.0"
+    WHATSAPP_OTP_TEMPLATE_NAME: str = "otp_login"
+    # Must match the template language in Meta (e.g. otp_login · English (US) → en_US)
+    WHATSAPP_OTP_TEMPLATE_LANGUAGE: str = "en_US"
+    # If the template has a dynamic URL button, Meta requires a button component (see otp.py)
+    WHATSAPP_OTP_TEMPLATE_HAS_URL_BUTTON: bool = False
+    # When HAS_URL_BUTTON: use the same OTP text for the URL button param (typical); if False, use WHATSAPP_OTP_URL_BUTTON_PARAM instead
+    WHATSAPP_OTP_URL_BUTTON_USE_BODY_OTP: bool = True
+    WHATSAPP_OTP_URL_BUTTON_PARAM: str = ""
+    # Webhook verification: Meta GET ?hub.mode=subscribe&hub.verify_token=...&hub.challenge=...
+    WHATSAPP_VERIFY_TOKEN: Optional[str] = None
+    # Optional: verify POST webhook signatures (X-Hub-Signature-256); Meta App Secret
+    WHATSAPP_APP_SECRET: Optional[str] = None
     
     # Store settings (admin-managed): customer discount %, order status list
     CUSTOMER_DISCOUNT_PERCENT: float = 10.0

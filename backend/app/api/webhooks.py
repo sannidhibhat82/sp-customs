@@ -6,6 +6,7 @@ from typing import Any
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -293,3 +294,73 @@ async def shiprocket_shipping_status_webhook(
     await db.commit()
     await db.refresh(order)
     return {"received": True, "order_id": order.id, "order_number": order.order_number, "shipment_status": order.shipment_status, "tracking_id": order.tracking_id}
+
+
+def _verify_whatsapp_webhook_signature(body: bytes, signature_header: str | None, app_secret: str) -> bool:
+    """Verify X-Hub-Signature-256 from Meta (WhatsApp) webhooks."""
+    if not app_secret or not signature_header:
+        return False
+    sig = signature_header.strip()
+    if not sig.startswith("sha256="):
+        return False
+    expected = hmac.new(app_secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    received = sig[7:]
+    return hmac.compare_digest(expected, received)
+
+
+@router.get("/whatsapp")
+async def whatsapp_webhook_verify(request: Request):
+    """
+    Meta WhatsApp webhook verification (GET).
+    Configure callback URL in Meta Developer App → WhatsApp → Configuration with the same verify token as WHATSAPP_VERIFY_TOKEN.
+    See: https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview/
+    """
+    params = request.query_params
+    mode = params.get("hub.mode")
+    token = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge")
+    expected = (settings.WHATSAPP_VERIFY_TOKEN or "").strip()
+    if mode == "subscribe" and token == expected and expected:
+        return PlainTextResponse(content=challenge or "")
+    raise HTTPException(status_code=403, detail="Verification failed")
+
+
+@router.post("/whatsapp")
+async def whatsapp_webhook_events(
+    request: Request,
+    x_hub_signature_256: str | None = Header(None, alias="X-Hub-Signature-256"),
+):
+    """
+    Meta WhatsApp webhook events (POST): message status, inbound messages, etc.
+    Acknowledge quickly with 200; optional signature check when WHATSAPP_APP_SECRET is set.
+    """
+    body = await request.body()
+    secret = (getattr(settings, "WHATSAPP_APP_SECRET", None) or "").strip()
+    if secret:
+        if not _verify_whatsapp_webhook_signature(body, x_hub_signature_256, secret):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    try:
+        payload = json.loads(body.decode("utf-8")) if body else {}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    # Minimal logging for delivery / errors (template sends emit statuses here).
+    try:
+        entries = payload.get("entry") or []
+        for entry in entries:
+            changes = entry.get("changes") or []
+            for change in changes:
+                value = change.get("value") or {}
+                statuses = value.get("statuses") or []
+                for st in statuses:
+                    logger.info(
+                        "WhatsApp status id=%s status=%s recipient=%s",
+                        st.get("id"),
+                        st.get("status"),
+                        st.get("recipient_id"),
+                    )
+    except Exception:
+        logger.exception("WhatsApp webhook parse log failed")
+
+    return {"success": True}

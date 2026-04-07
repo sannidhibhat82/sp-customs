@@ -24,7 +24,11 @@ export default function LoginModal({ open, onOpenChange, onSuccess }: LoginModal
     mutationFn: () => api.sendOtp(phone.trim(), name.trim() || undefined),
     onSuccess: () => {
       setStep('otp');
-      toast({ title: 'OTP sent', variant: 'success' });
+      toast({
+        title: 'OTP sent on WhatsApp',
+        description: 'Check messages for this number on WhatsApp.',
+        variant: 'success',
+      });
     },
     onError: (err: any) => {
       toast({ title: err.response?.data?.detail || 'Failed to send OTP', variant: 'destructive' });
@@ -83,19 +87,24 @@ export default function LoginModal({ open, onOpenChange, onSuccess }: LoginModal
               onChange={(e) => setName(e.target.value)}
             />
             <Input
-              placeholder="Mobile number *"
+              placeholder="WhatsApp mobile number *"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
+              inputMode="tel"
+              autoComplete="tel"
             />
+            <p className="text-xs text-muted-foreground">
+              We’ll send a one-time code to this number on WhatsApp. Use the number registered on WhatsApp.
+            </p>
             <Button type="submit" className="w-full" disabled={sendOtpMutation.isPending}>
-              {sendOtpMutation.isPending ? 'Sending…' : 'Send OTP'}
+              {sendOtpMutation.isPending ? 'Sending…' : 'Send OTP on WhatsApp'}
             </Button>
           </form>
         ) : (
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Enter the 6-digit OTP sent to {phone}
+              Enter the 6-digit code from your WhatsApp chat (sent to {phone}).
             </p>
             <Input
               placeholder="OTP"
