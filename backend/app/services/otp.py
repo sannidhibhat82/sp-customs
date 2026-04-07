@@ -132,11 +132,12 @@ def _send_whatsapp_template(to_phone: str, otp: str) -> None:
 def verify_otp(phone: str, otp: str) -> tuple[bool, Optional[str]]:
     """
     Verify OTP for phone. Returns (success, name_from_send).
-    Development: dummy OTP (e.g. 123456) always valid (name from store if present).
+    When OTP_DUMMY_FOR_DEV is True, OTP_DUMMY_CODE (e.g. 123456) is accepted without a prior send match.
+    When False, only the code issued for this phone (send-otp) is valid.
     """
     normalized = phone.strip().replace(" ", "")
     dummy = getattr(settings, "OTP_DUMMY_CODE", "123456")
-    if otp.strip() == dummy:
+    if getattr(settings, "OTP_DUMMY_FOR_DEV", True) and otp.strip() == dummy:
         entry = _otp_store.get(normalized)
         name = entry.get("name") if entry else None
         return True, name
