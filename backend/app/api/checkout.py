@@ -1,8 +1,8 @@
 """
 Checkout API - Book Now flow.
 Validates cart, creates order (payment_pending), then on payment success:
-inventory is deducted and Shiprocket order is created.
-Inventory logic is NOT modified; we call the same deduction used by existing order create.
+marks the order paid and converts the cart. Inventory is not deducted automatically;
+admin can adjust stock when fulfilling orders.
 """
 import logging
 from datetime import datetime
@@ -23,7 +23,6 @@ from app.models.user_address import UserAddress
 from app.models.product import Product
 from app.models.variant import ProductVariant
 from app.models.user import User
-from app.models.inventory import Inventory, InventoryLog
 from app.schemas.cart import (
     CheckoutValidateResponse,
     CheckoutCreateRequest,
@@ -56,55 +55,13 @@ class RazorpayVerifyRequest(BaseModel):
 
 async def _process_payment_success(order: Order, db: AsyncSession) -> None:
     """
-    Deduct inventory only. Shiprocket order is created by admin after approval (with dimensions).
+    Mark order paid and convert cart. Does not deduct inventory (handled separately by admin/fulfillment).
     Idempotent: safe to call if order already has payment_status=success.
     """
     if order.payment_status == "success":
         return
     if order.payment_status not in ("initiated", "pending"):
         raise HTTPException(status_code=400, detail=f"Order payment status is {order.payment_status}")
-    for item in order.items:
-        if item.product_id:
-            prod_result = await db.execute(
-                select(Product).options(selectinload(Product.inventory)).where(Product.id == item.product_id)
-            )
-            product = prod_result.scalar_one_or_none()
-            if product and product.inventory:
-                inv = product.inventory
-                qty_before = inv.quantity
-                if inv.quantity < item.quantity and not getattr(inv, "allow_backorder", False):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Insufficient stock for {item.product_name}. Available: {inv.quantity}, Requested: {item.quantity}",
-                    )
-                inv.quantity = max(0, inv.quantity - item.quantity)
-                inv.last_scanned_at = datetime.utcnow()
-                log = InventoryLog(
-                    inventory_id=inv.id,
-                    action="order_out",
-                    quantity_change=-item.quantity,
-                    quantity_before=qty_before,
-                    quantity_after=inv.quantity,
-                    reason=f"Order {order.order_number}",
-                    reference=order.order_number,
-                    user_id=order.created_by_id,
-                )
-                db.add(log)
-            if item.variant_id:
-                var_result = await db.execute(
-                    select(ProductVariant)
-                    .options(selectinload(ProductVariant.inventory))
-                    .where(ProductVariant.id == item.variant_id)
-                )
-                variant = var_result.scalar_one_or_none()
-                if variant and variant.inventory:
-                    vi = variant.inventory
-                    if vi.quantity < item.quantity and not getattr(vi, "allow_backorder", False):
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Insufficient stock for variant {item.variant_name or item.product_name}",
-                        )
-                    vi.quantity = max(0, vi.quantity - item.quantity)
     order.payment_status = "success"
     order.payment_info = {**(order.payment_info or {}), "status": "paid"}
     # Convert cart only after confirmed payment so cancel/back keeps cart intact.
@@ -440,7 +397,7 @@ async def payment_success_webhook(
 ):
     """
     Called when payment is confirmed (e.g. by payment gateway webhook or manual confirm).
-    Deducts inventory, creates Shiprocket order, generates label/invoice.
+    Marks order paid and converts cart; does not deduct inventory automatically.
     Idempotent: if order already has payment_status=success, skip.
     """
     result = await db.execute(
