@@ -219,6 +219,12 @@ Can you provide more details about this product?`
   const stockQuantity = selectedVariant?.inventory_quantity ?? product?.inventory?.quantity ?? 0;
   const isInStock = stockQuantity > 0;
 
+  const [justAddedToCart, setJustAddedToCart] = useState(false);
+
+  useEffect(() => {
+    setJustAddedToCart(false);
+  }, [product?.id, selectedVariant?.id]);
+
   const queryClient = useQueryClient();
   const guestSessionId = api.getGuestSessionId();
   const addToCartMutation = useMutation({
@@ -252,9 +258,17 @@ Can you provide more details about this product?`
   });
   const handleAddToCart = () => {
     if (!isInStock) return;
-    addToCartMutation.mutate({ quantity: 1 });
+    addToCartMutation.mutate(
+      { quantity: 1 },
+      {
+        onSuccess: () => {
+          setJustAddedToCart(true);
+          window.setTimeout(() => setJustAddedToCart(false), 2500);
+        },
+      }
+    );
   };
-  const handleBookNow = () => {
+  const handleBuyNow = () => {
     if (!isInStock) return;
     addToCartMutation.mutate({ quantity: 1 }, { onSuccess: () => router.push('/cart') });
   };
@@ -577,23 +591,38 @@ Can you provide more details about this product?`
                   size="lg"
                   className="h-11 w-full sm:w-auto sm:flex-1"
                   disabled={!isInStock || addToCartMutation.isPending}
-                  onClick={handleBookNow}
+                  onClick={handleBuyNow}
                 >
-                  Book Now
+                  Buy Now
                 </Button>
 
                 <Button
-                  size="icon"
+                  size={justAddedToCart ? 'default' : 'icon'}
                   variant="outline"
-                  className="h-11 w-full sm:w-11 shrink-0"
+                  className={cn(
+                    'h-11 shrink-0 transition-colors',
+                    justAddedToCart
+                      ? 'w-full sm:w-auto border-green-500 bg-green-500/10 text-green-600 hover:bg-green-500/15 hover:text-green-700 dark:text-green-400 px-4'
+                      : 'w-full sm:w-11'
+                  )}
                   disabled={!isInStock || addToCartMutation.isPending}
                   onClick={handleAddToCart}
-                  title="Add to cart"
+                  title={justAddedToCart ? 'Added to cart' : 'Add to cart'}
+                  aria-label={justAddedToCart ? 'Added to cart' : 'Add to cart'}
                 >
-                  <span className="relative inline-flex items-center justify-center">
-                    <ShoppingCart className="w-5 h-5" />
-                    <Plus className="w-3.5 h-3.5 absolute -right-1.5 -top-1.5 bg-background rounded-full p-0.5 border border-border" />
-                  </span>
+                  {justAddedToCart ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      <span className="ml-2 font-medium">Added</span>
+                    </>
+                  ) : addToCartMutation.isPending ? (
+                    <span className="text-sm font-medium">Adding…</span>
+                  ) : (
+                    <span className="relative inline-flex items-center justify-center">
+                      <ShoppingCart className="w-5 h-5" />
+                      <Plus className="w-3.5 h-3.5 absolute -right-1.5 -top-1.5 bg-background rounded-full p-0.5 border border-border" />
+                    </span>
+                  )}
                 </Button>
 
                 <Link
