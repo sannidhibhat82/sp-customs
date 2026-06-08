@@ -15,8 +15,6 @@ import {
   Share2,
   Package,
   Zap,
-  ShoppingCart,
-  Plus,
   Heart,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -597,13 +595,12 @@ Can you provide more details about this product?`
                 </Button>
 
                 <Button
-                  size={justAddedToCart ? 'default' : 'icon'}
+                  size="lg"
                   variant="outline"
                   className={cn(
-                    'h-11 shrink-0 transition-colors',
-                    justAddedToCart
-                      ? 'w-full sm:w-auto border-green-500 bg-green-500/10 text-green-600 hover:bg-green-500/15 hover:text-green-700 dark:text-green-400 px-4'
-                      : 'w-full sm:w-11'
+                    'h-11 shrink-0 w-full sm:w-auto px-4 transition-colors',
+                    justAddedToCart &&
+                      'border-green-500 bg-green-500/10 text-green-600 hover:bg-green-500/15 hover:text-green-700 dark:text-green-400'
                   )}
                   disabled={!isInStock || addToCartMutation.isPending}
                   onClick={handleAddToCart}
@@ -616,12 +613,9 @@ Can you provide more details about this product?`
                       <span className="ml-2 font-medium">Added</span>
                     </>
                   ) : addToCartMutation.isPending ? (
-                    <span className="text-sm font-medium">Adding…</span>
+                    <span className="font-medium">Adding…</span>
                   ) : (
-                    <span className="relative inline-flex items-center justify-center">
-                      <ShoppingCart className="w-5 h-5" />
-                      <Plus className="w-3.5 h-3.5 absolute -right-1.5 -top-1.5 bg-background rounded-full p-0.5 border border-border" />
-                    </span>
+                    <span className="font-medium">Add to cart</span>
                   )}
                 </Button>
 
