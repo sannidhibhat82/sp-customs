@@ -92,8 +92,8 @@ class Settings(BaseSettings):
     WHATSAPP_PHONE_NUMBER_ID: Optional[str] = None
     WHATSAPP_GRAPH_API_VERSION: str = "v21.0"
     WHATSAPP_OTP_TEMPLATE_NAME: str = "otp_login"
-    # Must match the template language in Meta (e.g. otp_login · English (US) → en_US)
-    WHATSAPP_OTP_TEMPLATE_LANGUAGE: str = "en_US"
+    # OTP template language (otp_login is often English US → en_US)
+    WHATSAPP_TEMPLATE_LANGUAGE: str = "en_US"
     # If the template has a dynamic URL button, Meta requires a button component (see otp.py)
     WHATSAPP_OTP_TEMPLATE_HAS_URL_BUTTON: bool = False
     # When HAS_URL_BUTTON: use the same OTP text for the URL button param (typical); if False, use WHATSAPP_OTP_URL_BUTTON_PARAM instead
@@ -103,6 +103,14 @@ class Settings(BaseSettings):
     WHATSAPP_VERIFY_TOKEN: Optional[str] = None
     # Optional: verify POST webhook signatures (X-Hub-Signature-256); Meta App Secret
     WHATSAPP_APP_SECRET: Optional[str] = None
+    # New-order alert sent to this number (E.164 digits, e.g. 919482617967)
+    WHATSAPP_ORDER_NOTIFY_PHONE: str = "919482617967"
+    # Order templates language (order_alert / order_confirmed are often English → en, not en_US)
+    WHATSAPP_ORDER_TEMPLATE_LANGUAGE: Optional[str] = None
+    # Admin alert template: {{1}} customer name, {{2}} categories (max 3 + "and N more")
+    WHATSAPP_ORDER_TEMPLATE_NAME: Optional[str] = None
+    # Customer confirmation (logged-in OTP users only): {{1}} name, {{2}} order number
+    WHATSAPP_ORDER_CUSTOMER_TEMPLATE_NAME: Optional[str] = None
     
     # Store settings (admin-managed): customer discount %, order status list
     CUSTOMER_DISCOUNT_PERCENT: float = 10.0

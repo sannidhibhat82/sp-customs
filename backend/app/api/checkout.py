@@ -21,6 +21,7 @@ from app.models.order import Order, OrderItem
 from app.models.order_address import OrderAddress
 from app.models.user_address import UserAddress
 from app.models.product import Product
+from app.models.category import Category
 from app.models.variant import ProductVariant
 from app.models.user import User
 from app.schemas.cart import (
@@ -30,6 +31,7 @@ from app.schemas.cart import (
 )
 from app.services.auth import get_current_user
 from app.config import settings
+from app.services.whatsapp_notify import notify_new_order
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -72,6 +74,27 @@ async def _process_payment_success(order: Order, db: AsyncSession) -> None:
             cart.status = "converted"
     await db.flush()
     # Shiprocket order is created by admin after approval (with package dimensions)
+    shipping = order.shipping_info or {}
+    customer_name = str(shipping.get("customer_name") or "Customer")
+    product_ids = [item.product_id for item in (order.items or []) if item.product_id]
+    category_names: List[str] = []
+    if product_ids:
+        cat_result = await db.execute(
+            select(Category.name)
+            .join(Product, Product.category_id == Category.id)
+            .where(Product.id.in_(product_ids))
+        )
+        category_names = [row[0] for row in cat_result.all() if row[0]]
+    customer_phone = None
+    if order.created_by_id:
+        user_result = await db.execute(select(User.phone).where(User.id == order.created_by_id))
+        customer_phone = user_result.scalar_one_or_none()
+    notify_new_order(
+        customer_name,
+        category_names,
+        customer_phone=customer_phone,
+        order_number=order.order_number,
+    )
 
 
 def _generate_order_number() -> str:
