@@ -209,8 +209,10 @@ export default function OrdersPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const lastTotalRef = useRef(0);
+
   // Fetch orders list with pagination
-  const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({
+  const { data: ordersData, isLoading: ordersLoading, isFetching: ordersFetching, refetch: refetchOrders } = useQuery({
     queryKey: ['orders', currentPage, statusFilter, debouncedSearch],
     queryFn: () => api.getOrders({ 
       page: currentPage, 
@@ -220,20 +222,29 @@ export default function OrdersPage() {
     }),
     enabled: viewMode === 'list',
   });
-  
-  const orders = ordersData?.items ?? [];
-  const totalOrders = ordersData?.total ?? 0;
+
+  if (typeof ordersData?.total === 'number') {
+    lastTotalRef.current = ordersData.total;
+  }
+
+  const totalOrders = ordersData?.total ?? lastTotalRef.current;
   const totalPages = Math.max(1, Math.ceil(totalOrders / pageSize));
-  
+  const orders =
+    ordersData?.page === currentPage ? (ordersData.items ?? []) : [];
+  const isOrdersListLoading =
+    ordersLoading || (ordersFetching && ordersData?.page !== currentPage);
+
   useEffect(() => {
+    lastTotalRef.current = 0;
     setCurrentPage(1);
   }, [statusFilter, debouncedSearch]);
 
   useEffect(() => {
+    if (!ordersData || ordersData.page !== currentPage) return;
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
-  }, [currentPage, totalPages]);
+  }, [ordersData, currentPage, totalPages]);
   
   // Update order status mutation
   const updateStatusMutation = useMutation({
@@ -688,7 +699,7 @@ export default function OrdersPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {ordersLoading ? (
+            {isOrdersListLoading ? (
               <div className="text-center py-8">
                 <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-2" />
                 <p className="text-muted-foreground">Loading orders...</p>
