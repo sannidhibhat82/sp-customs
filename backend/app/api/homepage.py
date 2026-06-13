@@ -3,7 +3,7 @@ API endpoints for homepage content management
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, desc, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime
@@ -68,10 +68,10 @@ async def get_homepage_content(db: AsyncSession = Depends(get_db)):
     testimonials_result = await db.execute(testimonials_query)
     testimonials = testimonials_result.scalars().all()
     
-    # Get active reels
+    # Get active reels (newest first)
     reels_query = select(InstagramReel).where(
         InstagramReel.is_active == True
-    ).order_by(InstagramReel.sort_order)
+    ).order_by(desc(InstagramReel.created_at), InstagramReel.sort_order)
     reels_result = await db.execute(reels_query)
     reels = reels_result.scalars().all()
     
@@ -253,7 +253,7 @@ async def get_reels(
     is_active: Optional[bool] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(InstagramReel).order_by(InstagramReel.sort_order)
+    query = select(InstagramReel).order_by(desc(InstagramReel.created_at), InstagramReel.sort_order)
     if is_active is not None:
         query = query.where(InstagramReel.is_active == is_active)
     result = await db.execute(query)
@@ -275,7 +275,12 @@ async def create_reel(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    reel = InstagramReel(**data.model_dump())
+    reel_data = data.model_dump()
+    if reel_data.get("sort_order", 0) == 0:
+        min_result = await db.execute(select(func.min(InstagramReel.sort_order)))
+        min_sort = min_result.scalar()
+        reel_data["sort_order"] = (min_sort - 1) if min_sort is not None else 0
+    reel = InstagramReel(**reel_data)
     db.add(reel)
     await db.commit()
     await db.refresh(reel)

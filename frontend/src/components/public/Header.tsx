@@ -57,7 +57,7 @@ export default function Header() {
   const [mounted, setMounted] = useState(false);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const isPublicSite = !pathname.startsWith('/admin');
-  const hasCustomerToken = mounted && isPublicSite && !!api.getToken();
+  const hasCustomerToken = mounted && isPublicSite && !!api.getCustomerToken();
   void authRefresh; // force re-render when token changes (login/logout)
 
   useEffect(() => {
@@ -321,7 +321,7 @@ export default function Header() {
                               <button
                                 type="button"
                                 className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-secondary/50 flex items-center gap-2"
-                                onClick={() => { api.clearToken(); setAuthRefresh((v) => v + 1); setShowProfileDropdown(false); }}
+                                onClick={() => { api.clearToken('customer'); setAuthRefresh((v) => v + 1); setShowProfileDropdown(false); }}
                               >
                                 <LogOut className="w-4 h-4" />
                                 Logout
@@ -577,7 +577,8 @@ export default function Header() {
                   </div>
 
                   {isPublicSite && (
-                    hasCustomerToken ? (
+                    mounted ? (
+                      hasCustomerToken ? (
                       <>
                         <Link href="/cart" onClick={() => setIsMobileMenuOpen(false)} className="px-4 py-3 rounded-lg font-medium flex items-center gap-2">
                           <ShoppingCart className="w-4 h-4" />
@@ -597,7 +598,7 @@ export default function Header() {
                         <button
                           type="button"
                           className="w-full px-4 py-3 rounded-lg font-medium text-left text-muted-foreground hover:bg-secondary flex items-center gap-2"
-                          onClick={() => { api.clearToken(); setAuthRefresh((v) => v + 1); setIsMobileMenuOpen(false); }}
+                          onClick={() => { api.clearToken('customer'); setAuthRefresh((v) => v + 1); setIsMobileMenuOpen(false); }}
                         >
                           <LogOut className="w-4 h-4" />
                           Logout
@@ -613,6 +614,7 @@ export default function Header() {
                         Login
                       </button>
                     )
+                    ) : null
                   )}
 
                   <Link

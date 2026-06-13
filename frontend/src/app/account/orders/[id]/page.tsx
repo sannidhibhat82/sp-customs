@@ -1,34 +1,28 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Package, Truck, MapPin, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Header, Footer } from '@/components/public';
+import { AccountAuthLoading } from '@/components/public/AccountAuthLoading';
 import { api } from '@/lib/api';
 import { formatCurrency, getImageSrc } from '@/lib/utils';
+import { useCustomerAuthGate } from '@/hooks/useCustomerAuthGate';
 
 export default function AccountOrderDetailPage() {
-  const router = useRouter();
   const params = useParams();
   const id = Number(params.id);
+  const authReady = useCustomerAuthGate();
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['my-order', id],
     queryFn: () => api.getMyOrder(id),
-    enabled: !!id && !isNaN(id),
+    enabled: authReady && !!id && !isNaN(id),
   });
 
-  useEffect(() => {
-    if (!api.getToken()) {
-      router.replace('/');
-      return;
-    }
-  }, [router]);
-
-  if (!api.getToken() || !id) return null;
+  if (!authReady || !id) return <AccountAuthLoading />;
 
   if (isLoading) {
     return (

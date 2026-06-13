@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, MapPin, Plus, Trash2, Star, User as UserIcon, Mail, Phone } from 'lucide-react';
 import { Header, Footer } from '@/components/public';
+import { AccountAuthLoading } from '@/components/public/AccountAuthLoading';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { toast } from '@/components/ui/use-toast';
+import { useCustomerAuthGate } from '@/hooks/useCustomerAuthGate';
 
 type Address = {
   id: number;
@@ -24,16 +25,13 @@ type Address = {
 };
 
 export default function AccountPage() {
-  const router = useRouter();
   const qc = useQueryClient();
-
-  useEffect(() => {
-    if (!api.getToken()) router.replace('/');
-  }, [router]);
+  const authReady = useCustomerAuthGate();
 
   const { data: me } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.getMe(),
+    enabled: authReady,
   });
 
   const [profile, setProfile] = useState({
@@ -61,6 +59,7 @@ export default function AccountPage() {
   const { data: addresses, isLoading } = useQuery({
     queryKey: ['addresses'],
     queryFn: () => api.listAddresses(),
+    enabled: authReady,
   });
 
   const list = useMemo(() => (addresses as Address[]) ?? [], [addresses]);
@@ -103,7 +102,7 @@ export default function AccountPage() {
     onError: (err: any) => toast({ title: err.response?.data?.detail || 'Failed to update', variant: 'destructive' }),
   });
 
-  if (!api.getToken()) return null;
+  if (!authReady) return <AccountAuthLoading />;
 
   return (
     <div className="min-h-screen bg-background">

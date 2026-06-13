@@ -179,7 +179,7 @@ class ApproveShiprocketRequest(BaseModel):
     package_width: float = 10.0
     package_height: float = 5.0
     package_weight: float = 0.5  # kg
-    pickup_location: str = "Primary"
+    pickup_location: str = "home-1"
     courier_id: Optional[int] = None  # optional preference
 
 
@@ -192,7 +192,7 @@ class ShiprocketUpdateOrderRequest(BaseModel):
     package_width: float = 10.0
     package_height: float = 5.0
     package_weight: float = 0.5
-    pickup_location: str = "Primary"
+    pickup_location: str = "home-1"
 
 
 class ShiprocketPickupLocationItem(BaseModel):

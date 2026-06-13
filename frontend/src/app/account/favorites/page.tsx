@@ -1,30 +1,24 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Heart, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Header, Footer } from '@/components/public';
+import { AccountAuthLoading } from '@/components/public/AccountAuthLoading';
 import { api } from '@/lib/api';
 import { formatCurrency, getImageSrc } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
+import { useCustomerAuthGate } from '@/hooks/useCustomerAuthGate';
 
 export default function AccountFavoritesPage() {
-  const router = useRouter();
   const queryClient = useQueryClient();
+  const authReady = useCustomerAuthGate();
   const { data: favorites, isLoading } = useQuery({
     queryKey: ['favorites'],
     queryFn: () => api.getFavorites(),
+    enabled: authReady,
   });
-
-  useEffect(() => {
-    if (!api.getToken()) {
-      router.replace('/');
-      return;
-    }
-  }, [router]);
 
   const removeMutation = useMutation({
     mutationFn: (productId: number) => api.removeFavorite(productId),
@@ -37,7 +31,7 @@ export default function AccountFavoritesPage() {
     },
   });
 
-  if (!api.getToken()) return null;
+  if (!authReady) return <AccountAuthLoading />;
 
   const list = (favorites as any[]) ?? [];
 

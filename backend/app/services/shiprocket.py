@@ -20,6 +20,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PICKUP_LOCATION = "home-1"
+
 # In-memory token cache (use Redis in production for multi-worker)
 _token: Optional[str] = None
 _token_expires_at: float = 0
@@ -318,7 +320,7 @@ def build_order_payload(
     length: float = 10.0,
     width: float = 10.0,
     height: float = 5.0,
-    pickup_location: str = "Primary",
+    pickup_location: str = DEFAULT_PICKUP_LOCATION,
 ) -> Dict[str, Any]:
     """
     Build Shiprocket adhoc order payload.

@@ -47,7 +47,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         set({ user: null, isAuthenticated: false });
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('sp_customs_token');
+          localStorage.removeItem('sp_customs_admin_token');
         }
       },
     }),

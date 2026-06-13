@@ -809,7 +809,7 @@ function ReelsTab() {
                 <label htmlFor="is_active_reel" className="text-sm">Active (visible on homepage)</label>
               </div>
 
-              <input type="hidden" name="sort_order" value={editingReel?.sort_order || reels.length} />
+              <input type="hidden" name="sort_order" value={editingReel?.sort_order ?? 0} />
 
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditingReel(null); setThumbnailPreview(null); setThumbnailData(null); }}>

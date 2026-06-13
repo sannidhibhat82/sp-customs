@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/lib/store';
 import { api } from '@/lib/api';
+import { isAdminRole } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
 
 export default function LoginPage() {
@@ -27,6 +28,15 @@ export default function LoginPage() {
 
     try {
       const response = await api.login(formData.username, formData.password);
+      if (!isAdminRole(response.user?.role)) {
+        api.clearToken('admin');
+        toast({
+          title: 'Access denied',
+          description: 'This account does not have admin access. Use an admin login.',
+          variant: 'destructive',
+        });
+        return;
+      }
       setUser(response.user);
       toast({
         title: 'Welcome back!',

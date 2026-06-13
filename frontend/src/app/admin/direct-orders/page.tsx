@@ -143,6 +143,7 @@ export default function DirectOrdersPage() {
       api.updateDirectOrderStatus(orderId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['direct-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['direct-order-stats-sidebar'] });
       toast({ title: '✅ Status Updated', variant: 'success' });
     },
     onError: () => {
@@ -176,6 +177,7 @@ export default function DirectOrdersPage() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['direct-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['direct-order-stats-sidebar'] });
       toast({
         title: '🎉 Direct Order Created!',
         description: `Order ${result.order_number} has been created. Note: Inventory was NOT affected.`,
@@ -198,6 +200,7 @@ export default function DirectOrdersPage() {
     mutationFn: (orderId: number) => api.deleteDirectOrder(orderId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['direct-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['direct-order-stats-sidebar'] });
       setSelectedOrder(null);
       toast({ title: 'Order deleted', variant: 'success' });
     },

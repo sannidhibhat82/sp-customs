@@ -30,6 +30,7 @@ from app.schemas.order import (
 )
 from app.services.auth import get_admin_user, get_current_user
 from app.services.barcode_generator import BarcodeGenerator
+from app.services.shiprocket import DEFAULT_PICKUP_LOCATION
 from app.config import settings
 
 router = APIRouter()
@@ -242,28 +243,52 @@ async def get_order_stats(
     current_user: User = Depends(get_admin_user)
 ):
     """Get order statistics."""
-    # Total orders
-    total_result = await db.execute(select(func.count(Order.id)))
+    raw = getattr(settings, "ORDER_STATUS_LIST", "Pending Approval,Processing,Packed,Shipped,Out for Delivery,Delivered,Cancelled")
+    status_list = [s.strip() for s in raw.split(",") if s.strip()]
+    first_status = status_list[0] if status_list else "Pending Approval"
+
+    # Total orders (paid only — matches admin list view)
+    total_result = await db.execute(
+        select(func.count(Order.id)).where(Order.payment_status == "success")
+    )
     total_orders = total_result.scalar() or 0
     
-    # Status counts
+    # Status counts for configured workflow statuses (paid orders only)
     status_counts = {}
-    for status in ["pending", "processing", "packed", "shipped", "delivered", "cancelled"]:
+    for status in status_list:
         result = await db.execute(
-            select(func.count(Order.id)).where(Order.status == status)
+            select(func.count(Order.id)).where(
+                Order.status == status,
+                Order.payment_status == "success",
+            )
         )
         status_counts[status] = result.scalar() or 0
+
+    pending_action_result = await db.execute(
+        select(func.count(Order.id)).where(
+            Order.status == first_status,
+            Order.payment_status == "success",
+        )
+    )
+    pending_action_count = pending_action_result.scalar() or 0
     
-    # Today's orders
+    # Today's orders (paid)
     today = datetime.now().date()
     today_result = await db.execute(
-        select(func.count(Order.id)).where(func.date(Order.created_at) == today)
+        select(func.count(Order.id)).where(
+            func.date(Order.created_at) == today,
+            Order.payment_status == "success",
+        )
     )
     today_orders = today_result.scalar() or 0
     
     # Total revenue
     revenue_result = await db.execute(
-        select(func.sum(Order.total)).where(Order.status != "cancelled")
+        select(func.sum(Order.total)).where(
+            Order.status != "cancelled",
+            Order.status != "Cancelled",
+            Order.payment_status == "success",
+        )
     )
     total_revenue = revenue_result.scalar() or Decimal(0)
     
@@ -272,6 +297,8 @@ async def get_order_stats(
         "today_orders": today_orders,
         "total_revenue": float(total_revenue),
         "status_counts": status_counts,
+        "pending_action_count": pending_action_count,
+        "first_status": first_status,
     }
 
 
@@ -354,6 +381,7 @@ async def get_direct_order_stats(
         "total_orders": total_orders,
         "today_orders": today_orders,
         "status_counts": status_counts,
+        "pending_action_count": status_counts.get("pending", 0),
     }
 
 
@@ -883,7 +911,7 @@ async def process_shiprocket_shipment(
             try:
                 pickup_resp = await get_pickup_locations()
                 locations = ((pickup_resp or {}).get("data") or {}).get("shipping_address") or []
-                pickup_name = str(((order.shipping_details or {}).get("pickup_location") or "Primary")).strip().lower()
+                pickup_name = str(((order.shipping_details or {}).get("pickup_location") or DEFAULT_PICKUP_LOCATION)).strip().lower()
                 matched = next(
                     (
                         p for p in locations
@@ -967,7 +995,7 @@ async def list_shiprocket_couriers(
         from app.services.shiprocket import check_serviceability, get_pickup_locations
         pickup_resp = await get_pickup_locations()
         locations = ((pickup_resp or {}).get("data") or {}).get("shipping_address") or []
-        pickup_name = str(((order.shipping_details or {}).get("pickup_location") or "Primary")).strip().lower()
+        pickup_name = str(((order.shipping_details or {}).get("pickup_location") or DEFAULT_PICKUP_LOCATION)).strip().lower()
         matched = next(
             (
                 p for p in locations

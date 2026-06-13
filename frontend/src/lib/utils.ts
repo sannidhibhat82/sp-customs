@@ -5,6 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const ADMIN_ROLES = new Set(['admin', 'manager']);
+
+export function isAdminRole(role?: string | null): boolean {
+  return !!role && ADMIN_ROLES.has(role);
+}
+
 export function formatCurrency(amount: number | null | undefined): string {
   if (amount == null) return "—";
   return new Intl.NumberFormat("en-IN", {

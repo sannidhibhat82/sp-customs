@@ -84,6 +84,19 @@ const DEFAULT_ORDER_STATUSES = [
   'Pending Approval', 'Processing', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled',
 ];
 
+const DEFAULT_SHIPROCKET_PICKUP = 'home-1';
+
+function resolveDefaultPickupLocation(
+  locations: Array<{ pickup_location: string; is_primary?: boolean }> = []
+) {
+  if (!locations.length) return DEFAULT_SHIPROCKET_PICKUP;
+  return (
+    locations.find((l) => l.pickup_location === DEFAULT_SHIPROCKET_PICKUP)?.pickup_location ??
+    locations.find((l) => l.is_primary)?.pickup_location ??
+    locations[0].pickup_location
+  );
+}
+
 // Order status colors (dark theme compatible)
 const STATUS_COLORS: Record<string, string> = {
   'Pending Approval': 'bg-amber-500/20 text-amber-500 border-amber-500/30',
@@ -224,6 +237,7 @@ export default function OrdersPage() {
       api.updateOrderStatus(orderId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['order-stats-sidebar'] });
       toast({ title: '✅ Status Updated', variant: 'success' });
     },
     onError: () => {
@@ -2010,7 +2024,7 @@ function OrderDetailView({
     package_width: 10,
     package_height: 5,
     package_weight: 0.5,
-    pickup_location: 'Primary',
+    pickup_location: DEFAULT_SHIPROCKET_PICKUP,
   });
 
   const pickupLocationsQuery = useQuery({
@@ -2034,7 +2048,7 @@ function OrderDetailView({
       package_width: 10,
       package_height: 5,
       package_weight: 0.5,
-      pickup_location: 'Primary',
+      pickup_location: DEFAULT_SHIPROCKET_PICKUP,
     });
   }, [order.id]);
 
@@ -2046,7 +2060,7 @@ function OrderDetailView({
       package_width: Number(sd.package_width) || 10,
       package_height: Number(sd.package_height) || 5,
       package_weight: Number(sd.package_weight) || 0.5,
-      pickup_location: String(sd.pickup_location || 'Primary'),
+      pickup_location: String(sd.pickup_location || DEFAULT_SHIPROCKET_PICKUP),
     });
   }, [showShiprocketUpdateModal, order.id]);
 
@@ -2057,10 +2071,9 @@ function OrderDetailView({
     setShiprocketForm((f) => {
       if (locs.some((l) => l.pickup_location === f.pickup_location)) return f;
       if (showShiprocketUpdateModal && String(f.pickup_location || '').trim()) return f;
-      const primary = locs.find((l) => l.is_primary);
       return {
         ...f,
-        pickup_location: primary?.pickup_location ?? locs[0].pickup_location,
+        pickup_location: resolveDefaultPickupLocation(locs),
       };
     });
   }, [
@@ -2199,7 +2212,7 @@ function OrderDetailView({
             id={locs.length ? `${htmlId}-manual` : htmlId}
             value={value}
             onChange={(e) => setShiprocketForm((f) => ({ ...f, pickup_location: e.target.value }))}
-            placeholder={locs.length ? 'Exact warehouse name' : 'e.g. Primary'}
+            placeholder={locs.length ? 'Exact warehouse name' : `e.g. ${DEFAULT_SHIPROCKET_PICKUP}`}
             className="mt-1"
           />
         )}

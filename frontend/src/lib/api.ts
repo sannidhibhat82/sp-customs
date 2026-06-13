@@ -1,10 +1,13 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const CUSTOMER_TOKEN_KEY = 'sp_customs_token';
+const ADMIN_TOKEN_KEY = 'sp_customs_admin_token';
 
 class ApiClient {
   private client: AxiosInstance;
-  private token: string | null = null;
+  private customerToken: string | null = null;
+  private adminToken: string | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -28,43 +31,92 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
+        const onAdmin =
+          typeof window !== 'undefined' &&
+          window.location.pathname.startsWith('/admin') &&
+          !window.location.pathname.startsWith('/admin/login');
         if (error.response?.status === 401) {
-          this.clearToken();
-          if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/admin/login')) {
+          this.clearToken(onAdmin ? 'admin' : 'customer');
+          if (onAdmin) {
             window.location.href = '/admin/login';
           }
+        } else if (error.response?.status === 403 && onAdmin) {
+          this.clearToken('admin');
+          window.location.href = '/admin/login';
         }
         return Promise.reject(error);
       }
     );
   }
 
-  setToken(token: string) {
-    this.token = token;
+  private isAdminContext(): boolean {
+    return typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+  }
+
+  setCustomerToken(token: string) {
+    this.customerToken = token;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('sp_customs_token', token);
+      localStorage.setItem(CUSTOMER_TOKEN_KEY, token);
     }
+  }
+
+  setAdminToken(token: string) {
+    this.adminToken = token;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    }
+  }
+
+  /** @deprecated Use setCustomerToken or setAdminToken */
+  setToken(token: string) {
+    if (this.isAdminContext()) {
+      this.setAdminToken(token);
+    } else {
+      this.setCustomerToken(token);
+    }
+  }
+
+  getCustomerToken(): string | null {
+    if (this.customerToken) return this.customerToken;
+    if (typeof window !== 'undefined') {
+      this.customerToken = localStorage.getItem(CUSTOMER_TOKEN_KEY);
+    }
+    return this.customerToken;
+  }
+
+  getAdminToken(): string | null {
+    if (this.adminToken) return this.adminToken;
+    if (typeof window !== 'undefined') {
+      this.adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
+    }
+    return this.adminToken;
   }
 
   getToken(): string | null {
-    if (this.token) return this.token;
-    if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('sp_customs_token');
-    }
-    return this.token;
+    return this.isAdminContext() ? this.getAdminToken() : this.getCustomerToken();
   }
 
-  clearToken() {
-    this.token = null;
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('sp_customs_token');
+  clearToken(scope: 'admin' | 'customer' | 'auto' = 'auto') {
+    const clearAdmin = scope === 'admin' || (scope === 'auto' && this.isAdminContext());
+    const clearCustomer = scope === 'customer' || (scope === 'auto' && !this.isAdminContext());
+    if (clearAdmin) {
+      this.adminToken = null;
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(ADMIN_TOKEN_KEY);
+      }
+    }
+    if (clearCustomer) {
+      this.customerToken = null;
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+      }
     }
   }
 
   // Auth (admin: username/password; customer: OTP)
   async login(username: string, password: string) {
     const response = await this.client.post('/auth/login/json', { username, password });
-    this.setToken(response.data.access_token);
+    this.setAdminToken(response.data.access_token);
     return response.data;
   }
 
@@ -85,7 +137,7 @@ class ApiClient {
 
   async verifyOtp(phone: string, otp: string, name?: string) {
     const response = await this.client.post('/auth/verify-otp', { phone, otp, name });
-    this.setToken(response.data.access_token);
+    this.setCustomerToken(response.data.access_token);
     return response.data;
   }
 

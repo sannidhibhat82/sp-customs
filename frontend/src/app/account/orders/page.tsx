@@ -1,30 +1,24 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Header, Footer } from '@/components/public';
+import { AccountAuthLoading } from '@/components/public/AccountAuthLoading';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { useCustomerAuthGate } from '@/hooks/useCustomerAuthGate';
 
 export default function AccountOrdersPage() {
-  const router = useRouter();
+  const authReady = useCustomerAuthGate();
   const { data: orders, isLoading } = useQuery({
     queryKey: ['my-orders'],
     queryFn: () => api.getMyOrders({ page_size: 50 }),
+    enabled: authReady,
   });
 
-  useEffect(() => {
-    if (!api.getToken()) {
-      router.replace('/');
-      return;
-    }
-  }, [router]);
-
-  if (!api.getToken()) return null;
+  if (!authReady) return <AccountAuthLoading />;
 
   return (
     <div className="min-h-screen bg-background">

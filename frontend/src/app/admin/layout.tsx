@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -23,12 +24,13 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore, useUIStore } from '@/lib/store';
-import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
+import { cn, isAdminRole } from '@/lib/utils';
 
 const sidebarItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
-  { href: '/admin/direct-orders', icon: Truck, label: 'Direct Orders', description: 'Brand-shipped' },
+  { href: '/admin/orders', icon: ShoppingCart, label: 'Orders', badgeKey: 'orders' as const },
+  { href: '/admin/direct-orders', icon: Truck, label: 'Direct Orders', description: 'Brand-shipped', badgeKey: 'directOrders' as const },
   { href: '/admin/products', icon: Package, label: 'Products' },
   { href: '/admin/categories', icon: Layers, label: 'Categories' },
   { href: '/admin/brands', icon: Tags, label: 'Brands' },
@@ -42,10 +44,34 @@ const sidebarItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, logout, setUser } = useAuthStore();
   const { sidebarOpen, setSidebarOpen, toggleSidebar } = useUIStore();
   const [isMobile, setIsMobile] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  const adminSessionActive = sessionReady && isAuthenticated && isAdminRole(user?.role);
+
+  const { data: orderStats } = useQuery({
+    queryKey: ['order-stats-sidebar'],
+    queryFn: () => api.getOrderStats(),
+    enabled: isHydrated && adminSessionActive,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: directOrderStats } = useQuery({
+    queryKey: ['direct-order-stats-sidebar'],
+    queryFn: () => api.getDirectOrderStats(),
+    enabled: isHydrated && adminSessionActive,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const sidebarBadges = {
+    orders: orderStats?.pending_action_count ?? 0,
+    directOrders: directOrderStats?.pending_action_count ?? 0,
+  };
 
   // Wait for hydration
   useEffect(() => {
@@ -79,18 +105,50 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, []);
 
   useEffect(() => {
-    if (isHydrated && !isAuthenticated && pathname !== '/admin/login') {
-      router.push('/admin/login');
-    }
-  }, [isAuthenticated, pathname, router, isHydrated]);
+    if (!isHydrated || pathname === '/admin/login') return;
+
+    let cancelled = false;
+
+    const validateAdminSession = async () => {
+      const adminToken = api.getAdminToken();
+      if (!adminToken) {
+        logout();
+        router.push('/admin/login');
+        return;
+      }
+
+      try {
+        const me = await api.getMe();
+        if (cancelled) return;
+        if (!isAdminRole(me.role)) {
+          logout();
+          api.clearToken('admin');
+          router.push('/admin/login');
+          return;
+        }
+        setUser(me);
+        setSessionReady(true);
+      } catch {
+        if (cancelled) return;
+        logout();
+        api.clearToken('admin');
+        router.push('/admin/login');
+      }
+    };
+
+    validateAdminSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, pathname, router, logout, setUser]);
 
   // Don't show layout on login page
   if (pathname === '/admin/login') {
     return <>{children}</>;
   }
 
-  // Show loading while hydrating
-  if (!isHydrated) {
+  // Show loading while hydrating or validating admin session
+  if (!isHydrated || !sessionReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -98,12 +156,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!isAuthenticated) {
+  if (!adminSessionActive) {
     return null;
   }
 
   const handleLogout = () => {
     logout();
+    api.clearToken('admin');
     router.push('/admin/login');
   };
 
@@ -167,6 +226,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {sidebarItems.map((item) => {
                   const isActive = pathname === item.href || 
                     (item.href !== '/admin' && pathname?.startsWith(item.href));
+                  const badgeCount = item.badgeKey ? sidebarBadges[item.badgeKey] : 0;
                   
                   return (
                     <Link
@@ -180,6 +240,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     >
                       <item.icon className="w-5 h-5" />
                       <span className="flex-1">{item.label}</span>
+                      {badgeCount > 0 && (
+                        <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                          {badgeCount > 99 ? '99+' : badgeCount}
+                        </span>
+                      )}
                       {isActive && <ChevronRight className="w-4 h-4" />}
                     </Link>
                   );
