@@ -149,6 +149,7 @@ export default function OrdersPage() {
   // Pagination & Search state
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const pageSize = 10;
   
@@ -203,33 +204,36 @@ export default function OrdersPage() {
   });
   const orderStatusList = statusOptionsData?.statuses?.length ? statusOptionsData.statuses : DEFAULT_ORDER_STATUSES;
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Fetch orders list with pagination
   const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({
-    queryKey: ['orders', currentPage, statusFilter],
+    queryKey: ['orders', currentPage, statusFilter, debouncedSearch],
     queryFn: () => api.getOrders({ 
       page: currentPage, 
       page_size: pageSize,
-      status: statusFilter || undefined 
+      status: statusFilter || undefined,
+      search: debouncedSearch || undefined,
     }),
     enabled: viewMode === 'list',
   });
   
-  const orders = ordersData || [];
-  const totalOrders = orders.length;
-  const totalPages = Math.ceil(totalOrders / pageSize) || 1;
+  const orders = ordersData?.items ?? [];
+  const totalOrders = ordersData?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalOrders / pageSize));
   
-  // Filter orders by search query
-  const filteredOrders = orders.filter((order: any) => {
-    // Show only successfully paid orders in admin list view.
-    if (String(order.payment_status || '').toLowerCase() !== 'success') return false;
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      order.order_number?.toLowerCase().includes(query) ||
-      order.shipping_info?.customer_name?.toLowerCase().includes(query) ||
-      order.shipping_info?.phone?.includes(query)
-    );
-  });
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, debouncedSearch]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
   
   // Update order status mutation
   const updateStatusMutation = useMutation({
@@ -672,7 +676,7 @@ export default function OrdersPage() {
                 {/* Status Filter */}
                 <select
                   value={statusFilter}
-                  onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => setStatusFilter(e.target.value)}
                   className="h-10 px-3 rounded-md border border-input bg-background text-sm"
                 >
                   <option value="">All Status</option>
@@ -689,7 +693,7 @@ export default function OrdersPage() {
                 <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-2" />
                 <p className="text-muted-foreground">Loading orders...</p>
               </div>
-            ) : filteredOrders.length === 0 ? (
+            ) : orders.length === 0 ? (
               <div className="text-center py-12">
                 <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
                 <h3 className="text-lg font-semibold mb-2">No Orders Found</h3>
@@ -706,7 +710,7 @@ export default function OrdersPage() {
             ) : (
               <>
                 <div className="space-y-3">
-                  {filteredOrders.map((order: any) => (
+                  {orders.map((order: any) => (
                     <div
                       key={order.id}
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-secondary/30 transition-colors"

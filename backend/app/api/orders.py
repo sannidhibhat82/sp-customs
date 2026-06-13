@@ -7,7 +7,7 @@ from decimal import Decimal
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, or_
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
@@ -18,7 +18,7 @@ from app.models.variant import ProductVariant
 from app.models.user import User
 from app.models.inventory import Inventory, InventoryLog
 from app.schemas.order import (
-    OrderCreate, OrderUpdate, OrderResponse, OrderListResponse,
+    OrderCreate, OrderUpdate, OrderResponse, OrderListResponse, OrderListPageResponse,
     OrderItemCreate, OrderItemResponse, OrderScanRequest, OrderScanResponse,
     ApproveShiprocketRequest,
     ShiprocketProcessShipmentRequest,
@@ -132,45 +132,77 @@ async def list_my_orders(
     ]
 
 
-@router.get("", response_model=List[OrderListResponse])
+def _admin_order_list_filters(
+    *,
+    status_filter: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """Paid orders only; optional status and search (order #, customer name, phone)."""
+    conditions = [Order.payment_status == "success"]
+    if status_filter:
+        conditions.append(Order.status == status_filter)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        conditions.append(
+            or_(
+                Order.order_number.ilike(term),
+                Order.shipping_info["customer_name"].astext.ilike(term),
+                Order.shipping_info["phone"].astext.ilike(term),
+            )
+        )
+    return conditions
+
+
+@router.get("", response_model=OrderListPageResponse)
 async def list_orders(
     status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_admin_user)
 ):
-    """List all orders with pagination (admin)."""
-    query = select(Order).options(selectinload(Order.items))
-    
-    if status_filter:
-        query = query.where(Order.status == status_filter)
-    
-    query = query.order_by(desc(Order.created_at))
+    """List paid orders with pagination (admin)."""
+    filters = _admin_order_list_filters(status_filter=status_filter, search=search)
+
+    total_result = await db.execute(select(func.count(Order.id)).where(*filters))
+    total = total_result.scalar() or 0
+
+    query = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(*filters)
+        .order_by(desc(Order.created_at))
+    )
     offset = (page - 1) * page_size
     query = query.offset(offset).limit(page_size)
-    
+
     result = await db.execute(query)
     orders = result.scalars().all()
-    
-    return [
-        OrderListResponse(
-            id=order.id,
-            uuid=order.uuid,
-            order_number=order.order_number,
-            status=order.status,
-            total=order.total,
-            shipping_info=order.shipping_info,
-            item_count=len(order.items),
-            payment_status=order.payment_status,
-            shiprocket_order_id=order.shiprocket_order_id,
-            shiprocket_shipment_id=order.shiprocket_shipment_id,
-            tracking_id=order.tracking_id,
-            created_at=order.created_at,
-            updated_at=order.updated_at,
-        )
-        for order in orders
-    ]
+
+    return OrderListPageResponse(
+        items=[
+            OrderListResponse(
+                id=order.id,
+                uuid=order.uuid,
+                order_number=order.order_number,
+                status=order.status,
+                total=order.total,
+                shipping_info=order.shipping_info,
+                item_count=len(order.items),
+                payment_status=order.payment_status,
+                shiprocket_order_id=order.shiprocket_order_id,
+                shiprocket_shipment_id=order.shiprocket_shipment_id,
+                tracking_id=order.tracking_id,
+                created_at=order.created_at,
+                updated_at=order.updated_at,
+            )
+            for order in orders
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/my/{order_id}", response_model=OrderResponse)
@@ -297,8 +329,9 @@ async def get_order_stats(
         "today_orders": today_orders,
         "total_revenue": float(total_revenue),
         "status_counts": status_counts,
+        "pending_approval_count": pending_action_count,
         "pending_action_count": pending_action_count,
-        "first_status": first_status,
+        "initial_status": first_status,
     }
 
 

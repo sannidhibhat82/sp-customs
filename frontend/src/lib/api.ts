@@ -755,9 +755,14 @@ class ApiClient {
 
   // ============ Orders ============
 
-  async getOrders(params?: { status?: string; page?: number; page_size?: number }) {
+  async getOrders(params?: { status?: string; page?: number; page_size?: number; search?: string }) {
     const response = await this.client.get('/orders', { params });
-    return response.data;
+    return response.data as {
+      items: any[];
+      total: number;
+      page: number;
+      page_size: number;
+    };
   }
 
   async getMyOrders(params?: { status?: string; page?: number; page_size?: number }) {

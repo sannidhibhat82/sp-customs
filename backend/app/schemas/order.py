@@ -173,6 +173,13 @@ class OrderListResponse(BaseModel):
         from_attributes = True
 
 
+class OrderListPageResponse(BaseModel):
+    items: List[OrderListResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 # Admin: approve order with Shiprocket (dimensions)
 class ApproveShiprocketRequest(BaseModel):
     package_length: float = 10.0  # cm

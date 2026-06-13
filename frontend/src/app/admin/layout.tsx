@@ -69,7 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   });
 
   const sidebarBadges = {
-    orders: orderStats?.pending_action_count ?? 0,
+    orders: orderStats?.pending_approval_count ?? orderStats?.pending_action_count ?? 0,
     directOrders: directOrderStats?.pending_action_count ?? 0,
   };
 
