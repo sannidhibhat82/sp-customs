@@ -59,7 +59,19 @@ async def _process_payment_success(order: Order, db: AsyncSession) -> None:
     """
     Mark order paid and convert cart. Does not deduct inventory (handled separately by admin/fulfillment).
     Idempotent: safe to call if order already has payment_status=success.
+    Uses row lock so verify + webhook cannot both send WhatsApp notifications.
     """
+    locked = (
+        await db.execute(
+            select(Order)
+            .options(selectinload(Order.items))
+            .where(Order.id == order.id)
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    if not locked:
+        return
+    order = locked
     if order.payment_status == "success":
         return
     if order.payment_status not in ("initiated", "pending"):
